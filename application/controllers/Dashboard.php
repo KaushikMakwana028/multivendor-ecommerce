@@ -119,7 +119,7 @@ class Dashboard extends CI_Controller
         $user = $this->General_model->getOne('users', array('id' => $user_id));
 
         if (!$user) {
-            redirect('login');
+            redirect('admin');
         }
 
         if ($this->input->post()) {

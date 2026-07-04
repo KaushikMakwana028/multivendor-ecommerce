@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
-define('OTP_FIXED_MODE', false); // ✅ Live mode — real random OTP sent via SMS
+define('OTP_FIXED_MODE', true);
 
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
@@ -10,22 +10,22 @@ require_once FCPATH . 'vendor/autoload.php';
 
 class Api extends CI_Controller
 {
-    /*-----------------------------------------------------------------------
-    | Config
-    |-----------------------------------------------------------------------*/
     private $jwt_secret = 'b7c1f3e9a2d64c58f19a8e73d0bcb52f8edc6b31a9f71e48d9a7e2f3c1a5b8e9';
     private $jwt_expiry = 365 * 24 * 60 * 60; // 1 year
+    private $request_data = null;
 
-    /*-----------------------------------------------------------------------
-    | Boot
-    |-----------------------------------------------------------------------*/
+    /*=======================================================================
+    | CONSTRUCTOR
+    |=======================================================================*/
+
     public function __construct()
     {
         parent::__construct();
 
         $this->load->model('General_model');
-        $this->load->library(['session', 'form_validation']);
+        $this->load->library(['form_validation']);
         $this->load->helper(['url', 'form']);
+        $this->config->load('razorpay');
 
         header('Access-Control-Allow-Origin: *');
         header('Access-Control-Allow-Headers: Authorization, Content-Type');
@@ -40,12 +40,9 @@ class Api extends CI_Controller
     }
 
     /*=======================================================================
-    | PRIVATE HELPERS
+    | CORE / SHARED HELPERS
     |=======================================================================*/
 
-    /**
-     * Send unified JSON response and stop execution.
-     */
     private function send_response(bool $status, string $message, $data = null, int $http_code = 200): void
     {
         http_response_code($http_code);
@@ -58,12 +55,62 @@ class Api extends CI_Controller
         exit;
     }
 
+    private function require_method(string $method): void
+    {
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? '') !== strtoupper($method)) {
+            $this->send_response(false, 'Method not allowed. Please use ' . strtoupper($method) . '.', null, 405);
+        }
+    }
+
+    private function request_data(): array
+    {
+        if ($this->request_data !== null) {
+            return $this->request_data;
+        }
+
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+            $this->request_data = $this->input->get() ?: [];
+            return $this->request_data;
+        }
+
+        $json = json_decode($this->input->raw_input_stream, true);
+        $this->request_data = array_merge(
+            $this->input->post() ?: [],
+            is_array($json) ? $json : []
+        );
+
+        return $this->request_data;
+    }
+
     /**
-     * Validate Bearer JWT from Authorization header.
-     * Returns the decoded token data object.
-     * Stops execution with 401 if token is missing/invalid.
+     * Read one field: JSON body → POST → GET (priority order).
      */
-    private function validate_token(): object
+    private function input_value(string $key, string $default = ''): string
+    {
+        $data = $this->request_data();
+        return array_key_exists($key, $data) ? trim((string) $data[$key]) : $default;
+    }
+
+    private function get_category_image_url(?string $filename): string
+    {
+        return !empty($filename) ? base_url('uploads/categories/' . $filename) : '';
+    }
+
+    private function get_product_image_url(?string $filename): string
+    {
+        return !empty($filename) ? base_url('uploads/products/' . $filename) : '';
+    }
+
+    private function get_user_image_url(?string $filename): string
+    {
+        return !empty($filename) ? base_url('uploads/users/' . $filename) : '';
+    }
+
+    /*=======================================================================
+    | AUTH / TOKEN HELPERS
+    |=======================================================================*/
+
+    private function validate_token(bool $with_meta = false): object
     {
         $header = $this->input->get_request_header('Authorization', true);
 
@@ -71,76 +118,77 @@ class Api extends CI_Controller
             $this->send_response(false, 'Authorization header missing. Please login first.', null, 401);
         }
 
+        $token = $matches[1];
+
         try {
-            $decoded = JWT::decode($matches[1], new Key($this->jwt_secret, 'HS256'));
+            $decoded = JWT::decode($token, new Key($this->jwt_secret, 'HS256'));
         } catch (Exception $e) {
             $this->send_response(false, 'Token is invalid or expired. Please login again.', null, 401);
+        }
+
+        if (
+            $this->db->table_exists('token_blacklist') &&
+            $this->db
+            ->where('token', $token)
+            ->where('expires_at >=', date('Y-m-d H:i:s'))
+            ->count_all_results('token_blacklist') > 0
+        ) {
+            $this->send_response(false, 'Token has been logged out. Please login again.', null, 401);
         }
 
         if (empty($decoded->data->id)) {
             $this->send_response(false, 'Token data is invalid.', null, 401);
         }
 
+        if ($with_meta) {
+            $decoded->token = $token;
+            return $decoded;
+        }
+
         return $decoded->data;
     }
 
-    /**
-     * Generate a signed JWT token for a user.
-     */
+    private function require_token_user_id(): int
+    {
+        $token_data = $this->validate_token();
+        $user_id = (int) ($token_data->id ?? 0);
+
+        if ($user_id <= 0) {
+            $this->send_response(false, 'Token data is invalid.', null, 401);
+        }
+
+        $user = $this->db->get_where('users', [
+            'id'        => $user_id,
+            'is_active' => 1,
+        ])->row();
+
+        if (!$user) {
+            $this->send_response(false, 'User account not found or inactive.', null, 401);
+        }
+
+        return $user_id;
+    }
+
     private function generate_token($user): string
     {
-        $id     = is_array($user) ? $user['id']     : $user->id;
-        $name   = is_array($user) ? $user['name']   : $user->name;
-        $email  = is_array($user) ? $user['email']  : $user->email;
-        $mobile = is_array($user) ? ($user['mobile'] ?? '') : ($user->mobile ?? '');
-        $role   = is_array($user) ? $user['role']   : $user->role;
+        $user = (object) $user;
 
         $payload = [
             'iss'  => base_url(),
             'iat'  => time(),
             'exp'  => time() + $this->jwt_expiry,
-            'data' => compact('id', 'name', 'email', 'mobile', 'role'),
+            'data' => [
+                'id'     => $user->id,
+                'name'   => $user->name,
+                'email'  => $user->email,
+                'mobile' => $user->mobile ?? '',
+                'role'   => $user->role,
+            ],
         ];
 
         return JWT::encode($payload, $this->jwt_secret, 'HS256');
     }
 
-    /**
-     * Read raw JSON body. Returns array.
-     */
-    private function get_json_body(): array
-    {
-        $raw = json_decode($this->input->raw_input_stream, true);
-        return is_array($raw) ? $raw : [];
-    }
-
-    /**
-     * Read one field: JSON body → POST → GET (priority order).
-     */
-    private function get_field(string $key, string $default = ''): string
-    {
-        $body = $this->get_json_body();
-        if (isset($body[$key])) return trim((string) $body[$key]);
-
-        $post = $this->input->post($key);
-        if ($post !== false && $post !== null) return trim((string) $post);
-
-        $get = $this->input->get($key);
-        if ($get !== false && $get !== null) return trim((string) $get);
-
-        return $default;
-    }
-
-    /*=======================================================================
-    | OTP HELPERS  — DB-based (copied from working reference, no session)
-    |   Requires table: user_login_otps (mobile, otp, expires_at)
-    |=======================================================================*/
-
-    /**
-     * Send OTP via SMS gateway (mobicomm.dove-sms.com).
-     * Copied exactly from reference project.
-     * In OTP_FIXED_MODE the HTTP call is skipped — OTP is always '123456'.
-     */
     private function send_otp_via_sms(string $mobileNo, string $otp): bool
     {
         if (OTP_FIXED_MODE) {
@@ -181,43 +229,82 @@ class Api extends CI_Controller
     }
 
     /*=======================================================================
-    | IMAGE URL HELPERS
-    |=======================================================================*/
-
-    private function get_category_image_url(?string $filename): string
-    {
-        return !empty($filename) ? base_url('uploads/categories/' . $filename) : '';
-    }
-
-    private function get_product_image_url(?string $filename): string
-    {
-        return !empty($filename) ? base_url('uploads/products/' . $filename) : '';
-    }
-
-    private function get_user_image_url(?string $filename): string
-    {
-        return !empty($filename) ? base_url('uploads/users/' . $filename) : '';
-    }
-
-    /*=======================================================================
-    | AUTH ENDPOINTS
+    | AUTH ENDPOINTS (Register / OTP / Logout)
     |=======================================================================*/
 
     /*-----------------------------------------------------------------------
-    | SEND OTP  (Mobile Login)
+    | REGISTER USER
+    | POST /api/register_user
+    | Body: { "name", "email", "mobile" }
+    |-----------------------------------------------------------------------*/
+    public function register_user(): void
+    {
+        $this->require_method('POST');
+
+        $name      = $this->input_value('name');
+        $email     = $this->input_value('email');
+        $mobile    = $this->input_value('mobile');
+
+        if (empty($name) || empty($email) || empty($mobile)) {
+            $this->send_response(false, 'name, email and mobile are all required.', null, 400);
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->send_response(false, 'Please enter a valid email address.', null, 400);
+        }
+
+        if (!is_numeric($mobile) || strlen($mobile) !== 10) {
+            $this->send_response(false, 'Mobile number must be exactly 10 digits.', null, 400);
+        }
+
+        if ($this->db->get_where('users', ['email' => $email])->row()) {
+            $this->send_response(false, 'This email address is already registered.', null, 400);
+        }
+
+        if ($this->db->get_where('users', ['mobile' => $mobile])->row()) {
+            $this->send_response(false, 'This mobile number is already registered.', null, 400);
+        }
+
+        $this->db->insert('users', [
+            'name'       => $name,
+            'email'      => $email,
+            'mobile'     => $mobile,
+            'password'   => '',
+            'shop_name'  => '',
+            'role'       => 0,
+            'is_active'  => 1,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $new_user_id = $this->db->insert_id();
+
+        if (!$new_user_id) {
+            $this->send_response(false, 'Registration failed. Please try again.', null, 500);
+        }
+
+        $this->send_response(true, 'Registration successful. Please login using OTP sent to your mobile.', [
+            'user' => [
+                'id'        => (int) $new_user_id,
+                'name'      => $name,
+                'email'     => $email,
+                'mobile'    => $mobile,
+                'role'      => 0,
+            ],
+        ], 201);
+    }
+
+    /*-----------------------------------------------------------------------
+    | SEND OTP
     | POST /api/send_otp
-    | Body: { "mobile": "9876543210" }
-    | → Finds user by mobile, stores OTP against user_id in DB, sends SMS
+    | Body: { "mobile" }
     |-----------------------------------------------------------------------*/
     public function send_otp(): void
     {
-        // ── Read input (JSON body or POST form-data) ──────────────────────
-        $input_data = $this->get_json_body();
-        if (!empty($input_data)) {
-            $_POST = $input_data;
-        }
+        $this->require_method('POST');
 
-        $mobile = trim($this->input->post('mobile') ?? '');
+        // ── Read input (JSON body or POST form-data) ──────────────────────
+        $mobile = $this->input_value('mobile');
 
         // ── Validate ──────────────────────────────────────────────────────
         if (empty($mobile)) {
@@ -253,7 +340,9 @@ class Api extends CI_Controller
         ]);
 
         // ── Send SMS ──────────────────────────────────────────────────────
-        $this->send_otp_via_sms($mobile, $otp);
+        // SMS sending is disabled during testing to avoid reducing OTP limits.
+        // Enable this line again when you want live OTP SMS delivery.
+        // $this->send_otp_via_sms($mobile, $otp);
 
         $this->send_response(true, 'OTP sent successfully to your mobile number.', [
             'masked_mobile' => '*******' . substr($mobile, -4),
@@ -262,21 +351,17 @@ class Api extends CI_Controller
     }
 
     /*-----------------------------------------------------------------------
-    | VERIFY OTP  (Mobile Login)
+    | VERIFY OTP (Login)
     | POST /api/verify_otp
-    | Body: { "mobile": "9876543210", "otp": "123456" }
-    | → Finds user by mobile → checks OTP by user_id → returns JWT token
+    | Body: { "mobile", "otp" }
     |-----------------------------------------------------------------------*/
     public function verify_otp(): void
     {
-        // ── Read input ────────────────────────────────────────────────────
-        $input_data = $this->get_json_body();
-        if (!empty($input_data)) {
-            $_POST = $input_data;
-        }
+        $this->require_method('POST');
 
-        $mobile      = trim($this->input->post('mobile') ?? '');
-        $entered_otp = trim($this->input->post('otp')    ?? '');
+        // ── Read input ────────────────────────────────────────────────────
+        $mobile      = $this->input_value('mobile');
+        $entered_otp = $this->input_value('otp');
 
         // ── Validate ──────────────────────────────────────────────────────
         if (empty($mobile) || empty($entered_otp)) {
@@ -330,88 +415,7 @@ class Api extends CI_Controller
         ]);
     }
 
-    /*-----------------------------------------------------------------------
-    | REGISTER USER
-    | POST /api/register_user
-    | Body: { "name", "email", "mobile", "password", "shop_name" }
-    | → Creates a new user account and returns JWT token
-    |-----------------------------------------------------------------------*/
-    public function register_user(): void
-    {
-        $body      = $this->get_json_body();
-        $name      = trim($body['name']      ?? $this->input->post('name')      ?? '');
-        $email     = trim($body['email']     ?? $this->input->post('email')     ?? '');
-        $mobile    = trim($body['mobile']    ?? $this->input->post('mobile')    ?? '');
-        $password  =      $body['password']  ?? $this->input->post('password')  ?? '';
-        $shop_name = trim($body['shop_name'] ?? $this->input->post('shop_name') ?? '');
 
-        // ── Required field validation ─────────────────────────────────────
-        if (empty($name) || empty($email) || empty($mobile) || empty($password)) {
-            $this->send_response(false, 'name, email, mobile and password are all required.', null, 400);
-        }
-
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->send_response(false, 'Please enter a valid email address.', null, 400);
-        }
-
-        if (!is_numeric($mobile) || strlen($mobile) !== 10) {
-            $this->send_response(false, 'Mobile number must be exactly 10 digits.', null, 400);
-        }
-
-        if (strlen($password) < 6) {
-            $this->send_response(false, 'Password must be at least 6 characters long.', null, 400);
-        }
-
-        // ── Duplicate checks ──────────────────────────────────────────────
-        if ($this->db->get_where('users', ['email' => $email])->row()) {
-            $this->send_response(false, 'This email address is already registered.', null, 400);
-        }
-
-        if ($this->db->get_where('users', ['mobile' => $mobile])->row()) {
-            $this->send_response(false, 'This mobile number is already registered.', null, 400);
-        }
-
-        // ── Insert new user ───────────────────────────────────────────────
-        $this->db->insert('users', [
-            'name'       => $name,
-            'email'      => $email,
-            'mobile'     => $mobile,
-            'password'   => password_hash($password, PASSWORD_DEFAULT),
-            'shop_name'  => $shop_name,
-            'role'       => 0,         // 0 = regular user, 1 = admin
-            'is_active'  => 1,
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ]);
-
-        $new_user_id = $this->db->insert_id();
-
-        if (!$new_user_id) {
-            $this->send_response(false, 'Registration failed. Please try again.', null, 500);
-        }
-
-        // ── Return user WITHOUT token (user must login via OTP) ───────────
-        $this->send_response(true, 'Registration successful. Please login using OTP sent to your mobile.', [
-            'user' => [
-                'id'        => (int) $new_user_id,
-                'name'      => $name,
-                'email'     => $email,
-                'mobile'    => $mobile,
-                'shop_name' => $shop_name,
-                'role'      => 0,
-            ],
-        ], 201);
-    }
-
-
-    /*=======================================================================
-    | USER PROFILE ENDPOINTS
-    |=======================================================================*/
-
-    /*-----------------------------------------------------------------------
-    | GET MY PROFILE
-    | GET /api/get_my_profile  [Auth required]
-    |-----------------------------------------------------------------------*/
     public function get_my_profile(): void
     {
         $token_data = $this->validate_token();
@@ -447,40 +451,68 @@ class Api extends CI_Controller
     |-----------------------------------------------------------------------*/
     public function update_my_profile(): void
     {
+        $this->require_method('POST');
+
         $token_data = $this->validate_token();
 
-        $body      = $this->get_json_body();
-        $name      = trim($body['name']      ?? $this->input->post('name')      ?? '');
-        $email     = trim($body['email']     ?? $this->input->post('email')     ?? '');
-        $shop_name = trim($body['shop_name'] ?? $this->input->post('shop_name') ?? '');
-        $address   = trim($body['address']   ?? $this->input->post('address')   ?? '');
+        $request = $this->request_data();
+        $update_data = [];
 
-        if (empty($name) || empty($email)) {
-            $this->send_response(false, 'name and email are required fields.', null, 400);
+        if (array_key_exists('name', $request)) {
+            $name = $this->input_value('name');
+            if ($name === '') {
+                $this->send_response(false, 'Name cannot be blank.', null, 400);
+            }
+            $update_data['name'] = $name;
         }
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->send_response(false, 'Please enter a valid email address.', null, 400);
+        if (array_key_exists('email', $request)) {
+            $email = $this->input_value('email');
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $this->send_response(false, 'Please enter a valid email address.', null, 400);
+            }
+
+            $email_taken = $this->db
+                ->where('email', $email)
+                ->where('id !=', $token_data->id)
+                ->get('users')
+                ->row();
+
+            if ($email_taken) {
+                $this->send_response(false, 'This email is already used by another account.', null, 400);
+            }
+
+            $update_data['email'] = $email;
         }
 
-        // Check email not taken by someone else
-        $email_taken = $this->db
-            ->where('email', $email)
-            ->where('id !=', $token_data->id)
-            ->get('users')
-            ->row();
+        if (array_key_exists('mobile', $request)) {
+            $mobile = preg_replace('/[^0-9]/', '', $this->input_value('mobile'));
+            $mobile = substr($mobile, -10);
 
-        if ($email_taken) {
-            $this->send_response(false, 'This email is already used by another account.', null, 400);
+            if (!is_numeric($mobile) || strlen($mobile) !== 10) {
+                $this->send_response(false, 'Mobile number must be exactly 10 digits.', null, 400);
+            }
+
+            $mobile_taken = $this->db
+                ->where('mobile', $mobile)
+                ->where('id !=', $token_data->id)
+                ->get('users')
+                ->row();
+
+            if ($mobile_taken) {
+                $this->send_response(false, 'This mobile number is already used by another account.', null, 400);
+            }
+
+            $update_data['mobile'] = $mobile;
         }
 
-        $update_data = [
-            'name'       => $name,
-            'email'      => $email,
-            'shop_name'  => $shop_name,
-            'address'    => $address,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ];
+        if (array_key_exists('shop_name', $request)) {
+            $update_data['shop_name'] = $this->input_value('shop_name');
+        }
+
+        if (array_key_exists('address', $request)) {
+            $update_data['address'] = $this->input_value('address');
+        }
 
         // Optional profile image upload
         if (!empty($_FILES['image']['name'])) {
@@ -497,6 +529,12 @@ class Api extends CI_Controller
             }
         }
 
+        if (empty($update_data)) {
+            $this->send_response(false, 'No profile data provided for update.', null, 400);
+        }
+
+        $update_data['updated_at'] = date('Y-m-d H:i:s');
+
         $this->db->where('id', $token_data->id)->update('users', $update_data);
 
         $updated_user = $this->db->get_where('users', ['id' => $token_data->id])->row();
@@ -510,6 +548,41 @@ class Api extends CI_Controller
             'image'     => $this->get_user_image_url($updated_user->image ?? ''),
             'address'   => $updated_user->address ?? '',
         ]);
+    }
+
+    /*-----------------------------------------------------------------------
+    | DELETE ACCOUNT
+    | POST /api/delete_account  [Auth required]
+    |-----------------------------------------------------------------------*/
+    public function delete_account(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+
+        $this->db->trans_begin();
+
+        if ($this->db->table_exists('cart_items')) {
+            $this->db->where('user_id', $user_id)->delete('cart_items');
+        }
+
+        if ($this->db->table_exists('user_addresses')) {
+            $this->db->where('user_id', $user_id)->delete('user_addresses');
+        }
+
+        $this->db->where('id', $user_id)->update('users', [
+            'is_active'  => 0,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            $this->send_response(false, 'Failed to delete account. Please try again.', null, 500);
+        }
+
+        $this->db->trans_commit();
+
+        $this->send_response(true, 'Account deleted successfully.');
     }
 
     /*=======================================================================
@@ -752,10 +825,1182 @@ class Api extends CI_Controller
         ]);
     }
 
+    /*=======================================================================
+    | CART ENDPOINTS
+    |=======================================================================*/
+
+    private function ensure_cart_table(): void
+    {
+        if (!$this->db->table_exists('cart_items')) {
+            $this->send_response(false, 'cart_items table is missing. Please create it first.', null, 500);
+        }
+    }
+
+    private function get_active_product(int $product_id)
+    {
+        if ($product_id <= 0) {
+            $this->send_response(false, 'A valid product ID is required.', null, 400);
+        }
+
+        $product = $this->db->get_where('products', [
+            'id'        => $product_id,
+            'is_active' => 1,
+        ])->row();
+
+        if (!$product) {
+            $this->send_response(false, 'Product not found or inactive.', null, 404);
+        }
+
+        return $product;
+    }
+
+    private function get_cart_row(int $user_id, int $cart_id = 0, int $product_id = 0)
+    {
+        if ($cart_id > 0) {
+            return $this->db->get_where('cart_items', [
+                'id'      => $cart_id,
+                'user_id' => $user_id,
+            ])->row();
+        }
+
+        if ($product_id > 0) {
+            return $this->db->get_where('cart_items', [
+                'user_id'    => $user_id,
+                'product_id' => $product_id,
+            ])->row();
+        }
+
+        $this->send_response(false, 'cart_id or product_id is required.', null, 400);
+    }
+
+    private function get_cart_summary(int $user_id): array
+    {
+        $rows = $this->db
+            ->select('ci.id AS cart_id, ci.product_id, ci.quantity, ci.created_at, ci.updated_at,
+                p.name, p.price, p.mrp, p.image, p.stock, p.is_active,
+                c.id AS category_id, c.name AS category_name')
+            ->from('cart_items ci')
+            ->join('products p', 'p.id = ci.product_id', 'left')
+            ->join('categories c', 'c.id = p.category_id', 'left')
+            ->where('ci.user_id', $user_id)
+            ->order_by('ci.id', 'DESC')
+            ->get()
+            ->result();
+
+        $items = [];
+        $total_items = 0;
+        $subtotal = 0.0;
+        $total_mrp = 0.0;
+
+        foreach ($rows as $row) {
+            $quantity = (int) $row->quantity;
+            $price = (float) ($row->price ?? 0);
+            $mrp = (float) ($row->mrp ?? 0);
+            $line_total = $price * $quantity;
+            $line_mrp_total = $mrp * $quantity;
+            $available = ((int) ($row->is_active ?? 0) === 1) && ((int) ($row->stock ?? 0) > 0);
+
+            $total_items += $quantity;
+            $subtotal += $line_total;
+            $total_mrp += $line_mrp_total;
+
+            $items[] = [
+                'cart_id'        => (int) $row->cart_id,
+                'product_id'     => (int) $row->product_id,
+                'name'           => $row->name ?? '',
+                'image'          => $this->get_product_image_url($row->image ?? ''),
+                'category_id'    => (int) ($row->category_id ?? 0),
+                'category_name'  => $row->category_name ?? '',
+                'price'          => $price,
+                'mrp'            => $mrp,
+                'quantity'       => $quantity,
+                'stock_quantity' => (int) ($row->stock ?? 0),
+                'is_available'   => $available,
+                'line_total'     => $line_total,
+                'created_at'     => $row->created_at,
+                'updated_at'     => $row->updated_at,
+            ];
+        }
+
+        return [
+            'total_cart_items' => count($items),
+            'total_quantity'   => $total_items,
+            'subtotal'         => $subtotal,
+            'total_mrp'        => $total_mrp,
+            'discount'         => max(0, $total_mrp - $subtotal),
+            'items'            => $items,
+        ];
+    }
+
+    /*-----------------------------------------------------------------------
+    | ADD TO CART
+    | POST /api/add_to_cart  [Auth required]
+    | Body: { "product_id", "quantity" }
+    |-----------------------------------------------------------------------*/
+    public function add_to_cart(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_cart_table();
+
+        $product_id = (int) $this->input_value('product_id');
+        $quantity = (int) $this->input_value('quantity', '1');
+
+        if ($quantity <= 0) {
+            $this->send_response(false, 'Quantity must be greater than zero.', null, 400);
+        }
+
+        $product = $this->get_active_product($product_id);
+
+        if ((int) $product->stock <= 0) {
+            $this->send_response(false, 'Product is out of stock.', null, 400);
+        }
+
+        $existing = $this->db->get_where('cart_items', [
+            'user_id'    => $user_id,
+            'product_id' => $product_id,
+        ])->row();
+
+        $new_quantity = $quantity + ($existing ? (int) $existing->quantity : 0);
+
+        if ($new_quantity > (int) $product->stock) {
+            $this->send_response(false, 'Requested quantity is greater than available stock.', null, 400);
+        }
+
+        if ($existing) {
+            $this->db->where('id', $existing->id)->update('cart_items', [
+                'quantity'   => $new_quantity,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        } else {
+            $this->db->insert('cart_items', [
+                'user_id'    => $user_id,
+                'product_id' => $product_id,
+                'quantity'   => $quantity,
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        $this->send_response(true, 'Product added to cart successfully.', $this->get_cart_summary($user_id));
+    }
+
+    /*-----------------------------------------------------------------------
+    | GET CART
+    | GET /api/get_cart  [Auth required]
+    |-----------------------------------------------------------------------*/
+    public function get_cart(): void
+    {
+        $user_id = $this->require_token_user_id();
+        $this->ensure_cart_table();
+
+        $this->send_response(true, 'Cart fetched successfully.', $this->get_cart_summary($user_id));
+    }
+
+    /*-----------------------------------------------------------------------
+    | UPDATE CART QUANTITY
+    | POST /api/update_cart_quantity  [Auth required]
+    | Body: { "cart_id" or "product_id", "quantity" }
+    |-----------------------------------------------------------------------*/
+    public function update_cart_quantity(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_cart_table();
+
+        $cart_id = (int) $this->input_value('cart_id');
+        $product_id = (int) $this->input_value('product_id');
+        $quantity = (int) $this->input_value('quantity');
+
+        if ($quantity < 0) {
+            $this->send_response(false, 'Quantity cannot be negative.', null, 400);
+        }
+
+        $cart_item = $this->get_cart_row($user_id, $cart_id, $product_id);
+
+        if (!$cart_item) {
+            $this->send_response(false, 'Cart item not found.', null, 404);
+        }
+
+        if ($quantity === 0) {
+            $this->db->where('id', $cart_item->id)->delete('cart_items');
+            $this->send_response(true, 'Product removed from cart successfully.', $this->get_cart_summary($user_id));
+        }
+
+        $product = $this->get_active_product((int) $cart_item->product_id);
+
+        if ($quantity > (int) $product->stock) {
+            $this->send_response(false, 'Requested quantity is greater than available stock.', null, 400);
+        }
+
+        $this->db->where('id', $cart_item->id)->update('cart_items', [
+            'quantity'   => $quantity,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->send_response(true, 'Cart quantity updated successfully.', $this->get_cart_summary($user_id));
+    }
+
+    /*-----------------------------------------------------------------------
+    | REMOVE FROM CART
+    | POST /api/remove_from_cart  [Auth required]
+    | Body: { "cart_id" or "product_id" }
+    |-----------------------------------------------------------------------*/
+    public function remove_from_cart(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_cart_table();
+
+        $cart_id = (int) $this->input_value('cart_id');
+        $product_id = (int) $this->input_value('product_id');
+        $cart_item = $this->get_cart_row($user_id, $cart_id, $product_id);
+
+        if (!$cart_item) {
+            $this->send_response(false, 'Cart item not found.', null, 404);
+        }
+
+        $this->db->where('id', $cart_item->id)->delete('cart_items');
+
+        $this->send_response(true, 'Product removed from cart successfully.', $this->get_cart_summary($user_id));
+    }
+
+    /*-----------------------------------------------------------------------
+    | CLEAR CART
+    | POST /api/clear_cart  [Auth required]
+    |-----------------------------------------------------------------------*/
+    public function clear_cart(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_cart_table();
+
+        $this->db->where('user_id', $user_id)->delete('cart_items');
+
+        $this->send_response(true, 'Cart cleared successfully.', $this->get_cart_summary($user_id));
+    }
+
+    /*=======================================================================
+    | ADDRESS ENDPOINTS
+    |=======================================================================*/
+
+    private function ensure_address_table(): void
+    {
+        if (!$this->db->table_exists('user_addresses')) {
+            $this->send_response(false, 'user_addresses table is missing. Please create it first.', null, 500);
+        }
+    }
+
+    private function format_address($address): array
+    {
+        return [
+            'id'            => (int) $address->id,
+            'full_name'     => $address->full_name ?? '',
+            'mobile'        => $address->mobile ?? '',
+            'address_line1' => $address->address_line1 ?? '',
+            'address_line2' => $address->address_line2 ?? '',
+            'landmark'      => $address->landmark ?? '',
+            'city'          => $address->city ?? '',
+            'state'         => $address->state ?? '',
+            'pincode'       => $address->pincode ?? '',
+            'country'       => $address->country ?? 'India',
+            'is_default'    => (int) ($address->is_default ?? 0),
+            'created_at'    => $address->created_at ?? null,
+            'updated_at'    => $address->updated_at ?? null,
+        ];
+    }
+
+    /*-----------------------------------------------------------------------
+    | GET ADDRESSES
+    | GET /api/get_addresses  [Auth required]
+    |-----------------------------------------------------------------------*/
+    public function get_addresses(): void
+    {
+        $user_id = $this->require_token_user_id();
+        $this->ensure_address_table();
+
+        $rows = $this->db
+            ->where('user_id', $user_id)
+            ->order_by('is_default', 'DESC')
+            ->order_by('id', 'DESC')
+            ->get('user_addresses')
+            ->result();
+
+        $addresses = array_map([$this, 'format_address'], $rows);
+
+        $this->send_response(true, 'Addresses fetched successfully.', [
+            'total_addresses' => count($addresses),
+            'addresses'       => $addresses,
+        ]);
+    }
+
+    /*-----------------------------------------------------------------------
+    | SAVE ADDRESS
+    | POST /api/save_address  [Auth required]
+    |-----------------------------------------------------------------------*/
+    public function save_address(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_address_table();
+
+        $full_name = $this->input_value('full_name');
+        $mobile = preg_replace('/[^0-9]/', '', $this->input_value('mobile'));
+        $mobile = substr($mobile, -10);
+        $address_line1 = $this->input_value('address_line1');
+        $city = $this->input_value('city');
+        $state = $this->input_value('state');
+        $pincode = $this->input_value('pincode');
+        $is_default = (int) $this->input_value('is_default', '0');
+
+        if ($full_name === '' || $mobile === '' || $address_line1 === '' || $city === '' || $state === '' || $pincode === '') {
+            $this->send_response(false, 'full_name, mobile, address_line1, city, state and pincode are required.', null, 400);
+        }
+
+        if (!is_numeric($mobile) || strlen($mobile) !== 10) {
+            $this->send_response(false, 'Mobile number must be exactly 10 digits.', null, 400);
+        }
+
+        if ($is_default === 1) {
+            $this->db->where('user_id', $user_id)->update('user_addresses', ['is_default' => 0]);
+        }
+
+        $this->db->insert('user_addresses', [
+            'user_id'       => $user_id,
+            'full_name'     => $full_name,
+            'mobile'        => $mobile,
+            'address_line1' => $address_line1,
+            'address_line2' => $this->input_value('address_line2'),
+            'landmark'      => $this->input_value('landmark'),
+            'city'          => $city,
+            'state'         => $state,
+            'pincode'       => $pincode,
+            'country'       => $this->input_value('country', 'India'),
+            'is_default'    => $is_default,
+            'created_at'    => date('Y-m-d H:i:s'),
+            'updated_at'    => date('Y-m-d H:i:s'),
+        ]);
+
+        $address_id = $this->db->insert_id();
+        $address = $this->db->get_where('user_addresses', ['id' => $address_id, 'user_id' => $user_id])->row();
+
+        $this->send_response(true, 'Address saved successfully.', $this->format_address($address), 201);
+    }
+
+    /*-----------------------------------------------------------------------
+    | UPDATE ADDRESS
+    | POST /api/update_address  [Auth required]
+    | Body: { "address_id", ...fields }
+    |-----------------------------------------------------------------------*/
+    public function update_address(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_address_table();
+
+        $address_id = (int) $this->input_value('address_id');
+
+        if ($address_id <= 0) {
+            $this->send_response(false, 'address_id is required.', null, 400);
+        }
+
+        $address = $this->db->get_where('user_addresses', [
+            'id'      => $address_id,
+            'user_id' => $user_id,
+        ])->row();
+
+        if (!$address) {
+            $this->send_response(false, 'Address not found.', null, 404);
+        }
+
+        $request = $this->request_data();
+        $update_data = [];
+
+        foreach (['full_name', 'address_line1', 'address_line2', 'landmark', 'city', 'state', 'pincode', 'country'] as $field) {
+            if (array_key_exists($field, $request)) {
+                $update_data[$field] = $this->input_value($field);
+            }
+        }
+
+        if (array_key_exists('mobile', $request)) {
+            $mobile = preg_replace('/[^0-9]/', '', $this->input_value('mobile'));
+            $mobile = substr($mobile, -10);
+            if (!is_numeric($mobile) || strlen($mobile) !== 10) {
+                $this->send_response(false, 'Mobile number must be exactly 10 digits.', null, 400);
+            }
+            $update_data['mobile'] = $mobile;
+        }
+
+        if (array_key_exists('is_default', $request)) {
+            $update_data['is_default'] = (int) $this->input_value('is_default', '0');
+            if ((int) $update_data['is_default'] === 1) {
+                $this->db
+                    ->where('user_id', $user_id)
+                    ->where('id !=', $address_id)
+                    ->update('user_addresses', ['is_default' => 0]);
+            }
+        }
+
+        if (empty($update_data)) {
+            $this->send_response(false, 'No address data provided for update.', null, 400);
+        }
+
+        $update_data['updated_at'] = date('Y-m-d H:i:s');
+
+        $this->db->where(['id' => $address_id, 'user_id' => $user_id])->update('user_addresses', $update_data);
+        $updated_address = $this->db->get_where('user_addresses', ['id' => $address_id, 'user_id' => $user_id])->row();
+
+        $this->send_response(true, 'Address updated successfully.', $this->format_address($updated_address));
+    }
+
+    /*-----------------------------------------------------------------------
+    | DELETE ADDRESS
+    | POST /api/delete_address  [Auth required]
+    | Body: { "address_id" }
+    |-----------------------------------------------------------------------*/
+    public function delete_address(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_address_table();
+
+        $address_id = (int) $this->input_value('address_id');
+
+        if ($address_id <= 0) {
+            $this->send_response(false, 'address_id is required.', null, 400);
+        }
+
+        $address = $this->db->get_where('user_addresses', [
+            'id'      => $address_id,
+            'user_id' => $user_id,
+        ])->row();
+
+        if (!$address) {
+            $this->send_response(false, 'Address not found.', null, 404);
+        }
+
+        $this->db->where(['id' => $address_id, 'user_id' => $user_id])->delete('user_addresses');
+
+        $this->send_response(true, 'Address deleted successfully.');
+    }
+
+    /*=======================================================================
+    | ORDER ENDPOINTS
+    |=======================================================================*/
+
+    private function ensure_orders_table(): void
+    {
+        if (!$this->db->table_exists('orders') || !$this->db->table_exists('order_items')) {
+            $this->send_response(false, 'orders/order_items table is missing. Please create it first.', null, 500);
+        }
+    }
+
+    private function insert_order_items(int $order_id, array $items): void
+    {
+        foreach ($items as $item) {
+            $this->db->insert('order_items', [
+                'order_id'      => $order_id,
+                'product_id'    => $item['product_id'],
+                'product_name'  => $item['name'],
+                'product_image' => $item['image'],
+                'price'         => $item['price'],
+                'quantity'      => $item['quantity'],
+                'subtotal'      => $item['line_total'],
+                'created_at'    => date('Y-m-d H:i:s'),
+            ]);
+        }
+    }
+
+    private function reduce_stock(array $items): void
+    {
+        foreach ($items as $item) {
+            $this->db->set('stock', 'stock - ' . (int) $item['quantity'], false)
+                ->where('id', $item['product_id'])
+                ->update('products');
+        }
+    }
+
+    private function restore_stock_for_order(int $order_id): void
+    {
+        $items = $this->db->where('order_id', $order_id)->get('order_items')->result();
+        foreach ($items as $item) {
+            $this->db->set('stock', 'stock + ' . (int) $item->quantity, false)
+                ->where('id', $item->product_id)
+                ->update('products');
+        }
+    }
+
+    private function insert_status_history(int $order_id, string $status, string $remarks, string $changed_by): void
+    {
+        $this->db->insert('order_status_history', [
+            'order_id'   => $order_id,
+            'status'     => $status,
+            'remarks'    => $remarks,
+            'changed_by' => $changed_by,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    private function create_razorpay_order(array $payload, string $key_id, string $key_secret): array
+    {
+        $ch = curl_init('https://api.razorpay.com/v1/orders');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPAUTH       => CURLAUTH_BASIC,
+            CURLOPT_USERPWD        => $key_id . ':' . $key_secret,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($payload),
+            CURLOPT_TIMEOUT        => 30,
+        ]);
+
+        $response    = curl_exec($ch);
+        $curl_error  = curl_error($ch);
+        $status_code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($response === false) {
+            return ['status' => false, 'message' => $curl_error ?: 'Unable to connect to Razorpay.'];
+        }
+
+        $decoded = json_decode($response, true);
+
+        if ($status_code < 200 || $status_code >= 300 || !is_array($decoded)) {
+            $message = 'Unable to create Razorpay order.';
+            if (is_array($decoded) && !empty($decoded['error']['description'])) {
+                $message = (string) $decoded['error']['description'];
+            }
+            return ['status' => false, 'message' => $message];
+        }
+
+        return ['status' => true, 'data' => $decoded];
+    }
+
+    private function format_order_full(int $order_id, int $user_id): ?array
+    {
+        $order = $this->db->get_where('orders', ['id' => $order_id, 'user_id' => $user_id])->row();
+
+        if (!$order) {
+            return null;
+        }
+
+        $address = $this->db->get_where('user_addresses', ['id' => $order->address_id])->row();
+        $items   = $this->db->where('order_id', $order_id)->get('order_items')->result();
+        $history = $this->db->where('order_id', $order_id)->order_by('id', 'ASC')->get('order_status_history')->result();
+
+        $item_list = array_map(function ($item) {
+            return [
+                'id'            => (int) $item->id,
+                'product_id'    => (int) $item->product_id,
+                'product_name'  => $item->product_name,
+                'product_image' => $item->product_image,
+                'price'         => (float) $item->price,
+                'quantity'      => (int) $item->quantity,
+                'subtotal'      => (float) $item->subtotal,
+            ];
+        }, $items);
+
+        $history_list = array_map(function ($h) {
+            return [
+                'status'     => $h->status,
+                'remarks'    => $h->remarks,
+                'changed_by' => $h->changed_by,
+                'created_at' => $h->created_at,
+            ];
+        }, $history);
+
+        return [
+            'order_id'         => (int) $order->id,
+            'order_number'     => $order->order_number,
+            'status'           => $order->status,
+            'payment_method'   => $order->payment_method,
+            'payment_status'   => $order->payment_status,
+            'subtotal'         => (float) $order->subtotal,
+            'delivery_charge'  => (float) $order->delivery_charge,
+            'discount'         => (float) $order->discount,
+            'total_amount'     => (float) $order->total_amount,
+            'total_items'      => (int) $order->total_items,
+            'notes'            => $order->notes,
+            'cancel_reason'    => $order->cancel_reason,
+            'cancelled_by'     => $order->cancelled_by,
+            'created_at'       => $order->created_at,
+            'updated_at'       => $order->updated_at,
+            'items'            => $item_list,
+            'delivery_address' => $address ? $this->format_address($address) : null,
+            'status_history'   => $history_list,
+        ];
+    }
+
+    /*-----------------------------------------------------------------------
+    | PLACE ORDER
+    | POST /api/place_order  [Auth required]
+    | Body: { "address_id", "payment_method" (cod|online), "notes" }
+    |-----------------------------------------------------------------------*/
+    public function place_order(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_cart_table();
+        $this->ensure_address_table();
+        $this->ensure_orders_table();
+
+        $address_id     = (int) $this->input_value('address_id');
+        $payment_method = strtolower($this->input_value('payment_method', 'cod'));
+        $notes          = $this->input_value('notes');
+
+        if ($address_id <= 0) {
+            $this->send_response(false, 'Please select a delivery address.', null, 400);
+        }
+
+        $address = $this->db->get_where('user_addresses', [
+            'id'      => $address_id,
+            'user_id' => $user_id,
+        ])->row();
+
+        if (!$address) {
+            $this->send_response(false, 'Delivery address not found.', null, 404);
+        }
+
+        if (!in_array($payment_method, ['cod', 'online'], true)) {
+            $payment_method = 'cod';
+        }
+
+        $cart_summary = $this->get_cart_summary($user_id);
+
+        if (empty($cart_summary['items'])) {
+            $this->send_response(false, 'Your cart is empty.', null, 400);
+        }
+
+        foreach ($cart_summary['items'] as $item) {
+            if (!$item['is_available']) {
+                $this->send_response(false, $item['name'] . ' is currently unavailable.', null, 400);
+            }
+            if ($item['quantity'] > $item['stock_quantity']) {
+                $this->send_response(false, 'Insufficient stock for ' . $item['name'] . '. Available: ' . $item['stock_quantity'], null, 400);
+            }
+        }
+
+        $subtotal        = $cart_summary['subtotal'];
+        $delivery_charge = 0.00;
+        $discount        = 0.00;
+        $total_amount    = $subtotal + $delivery_charge - $discount;
+        $order_number    = 'GMB' . date('Ymd') . strtoupper(substr(uniqid(), -6));
+
+        /* ---------------- ONLINE PAYMENT ---------------- */
+        if ($payment_method === 'online') {
+            $key_id     = trim((string) config_item('razorpay_key_id'));
+            $key_secret = trim((string) config_item('razorpay_key_secret'));
+            $currency   = trim((string) config_item('razorpay_currency')) ?: 'INR';
+
+            if ($key_id === '' || $key_secret === '') {
+                $this->send_response(false, 'Online payment is temporarily unavailable. Please choose Cash on Delivery.', null, 500);
+            }
+
+            $gateway = $this->create_razorpay_order([
+                'amount'   => (int) round($total_amount * 100),
+                'currency' => $currency,
+                'receipt'  => 'order_' . $user_id . '_' . time(),
+                'notes'    => ['user_id' => (string) $user_id],
+            ], $key_id, $key_secret);
+
+            if (empty($gateway['status'])) {
+                $this->send_response(false, $gateway['message'] ?? 'Unable to create payment order.', null, 502);
+            }
+
+            $this->db->trans_begin();
+
+            $this->db->insert('orders', [
+                'user_id'           => $user_id,
+                'address_id'        => $address_id,
+                'order_number'      => $order_number,
+                'subtotal'          => $subtotal,
+                'delivery_charge'   => $delivery_charge,
+                'discount'          => $discount,
+                'total_amount'      => $total_amount,
+                'total_items'       => $cart_summary['total_quantity'],
+                'payment_method'    => 'online',
+                'payment_status'    => 'pending',
+                'razorpay_order_id' => $gateway['data']['id'],
+                'status'            => 'pending',
+                'notes'             => $notes,
+                'created_at'        => date('Y-m-d H:i:s'),
+            ]);
+
+            $order_id = $this->db->insert_id();
+            $this->insert_order_items($order_id, $cart_summary['items']);
+
+            if ($this->db->trans_status() === false) {
+                $this->db->trans_rollback();
+                $this->send_response(false, 'Failed to initiate order. Please try again.', null, 500);
+            }
+
+            $this->db->trans_commit();
+
+            $this->send_response(true, 'Razorpay order created. Complete the payment to confirm.', [
+                'order_id'          => $order_id,
+                'order_number'      => $order_number,
+                'razorpay_order_id' => $gateway['data']['id'],
+                'amount'            => $total_amount,
+                'currency'          => $currency,
+                'key_id'            => $key_id,
+            ]);
+            return;
+        }
+
+        /* ---------------- COD ---------------- */
+        $this->db->trans_begin();
+
+        $this->db->insert('orders', [
+            'user_id'         => $user_id,
+            'address_id'      => $address_id,
+            'order_number'    => $order_number,
+            'subtotal'        => $subtotal,
+            'delivery_charge' => $delivery_charge,
+            'discount'        => $discount,
+            'total_amount'    => $total_amount,
+            'total_items'     => $cart_summary['total_quantity'],
+            'payment_method'  => 'cod',
+            'payment_status'  => 'pending',
+            'status'          => 'pending',
+            'notes'           => $notes,
+            'created_at'      => date('Y-m-d H:i:s'),
+        ]);
+
+        $order_id = $this->db->insert_id();
+        $this->insert_order_items($order_id, $cart_summary['items']);
+        $this->reduce_stock($cart_summary['items']);
+        $this->insert_status_history($order_id, 'pending', 'Order placed successfully', 'system');
+        $this->db->where('user_id', $user_id)->delete('cart_items');
+
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            $this->send_response(false, 'Failed to place order. Please try again.', null, 500);
+        }
+
+        $this->db->trans_commit();
+
+        $this->send_response(true, 'Order placed successfully.', $this->format_order_full($order_id, $user_id), 201);
+    }
+
+    /*-----------------------------------------------------------------------
+    | VERIFY ORDER PAYMENT (Razorpay)
+    | POST /api/verify_order_payment  [Auth required]
+    | Body: { "razorpay_order_id", "razorpay_payment_id", "razorpay_signature" }
+    |-----------------------------------------------------------------------*/
+    public function verify_order_payment(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_orders_table();
+
+        $razorpay_order_id   = $this->input_value('razorpay_order_id');
+        $razorpay_payment_id = $this->input_value('razorpay_payment_id');
+        $razorpay_signature  = $this->input_value('razorpay_signature');
+
+        if ($razorpay_order_id === '' || $razorpay_payment_id === '' || $razorpay_signature === '') {
+            $this->send_response(false, 'Missing payment verification details.', null, 400);
+        }
+
+        $order = $this->db->get_where('orders', [
+            'user_id'           => $user_id,
+            'razorpay_order_id' => $razorpay_order_id,
+        ])->row();
+
+        if (!$order) {
+            $this->send_response(false, 'Order not found for verification.', null, 404);
+        }
+
+        $key_secret          = trim((string) config_item('razorpay_key_secret'));
+        $expected_signature  = hash_hmac('sha256', $razorpay_order_id . '|' . $razorpay_payment_id, $key_secret);
+
+        if (!hash_equals($expected_signature, $razorpay_signature)) {
+            $this->db->where('id', $order->id)->update('orders', [
+                'payment_status' => 'failed',
+                'updated_at'     => date('Y-m-d H:i:s'),
+            ]);
+            $this->send_response(false, 'Payment verification failed.', null, 400);
+        }
+
+        $this->db->trans_begin();
+
+        $this->db->where('id', $order->id)->update('orders', [
+            'payment_status'      => 'paid',
+            'status'              => 'confirmed',
+            'razorpay_payment_id' => $razorpay_payment_id,
+            'razorpay_signature'  => $razorpay_signature,
+            'updated_at'          => date('Y-m-d H:i:s'),
+        ]);
+
+        $items = $this->db->where('order_id', $order->id)->get('order_items')->result();
+        foreach ($items as $item) {
+            $this->db->set('stock', 'stock - ' . (int) $item->quantity, false)
+                ->where('id', $item->product_id)
+                ->update('products');
+        }
+
+        $this->insert_status_history($order->id, 'confirmed', 'Payment received successfully', 'system');
+        $this->db->where('user_id', $user_id)->delete('cart_items');
+
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            $this->send_response(false, 'Payment received, but order could not be confirmed. Please contact support.', null, 500);
+        }
+
+        $this->db->trans_commit();
+
+        $this->send_response(true, 'Payment verified. Order confirmed.', $this->format_order_full($order->id, $user_id));
+    }
+
+    /*-----------------------------------------------------------------------
+    | GET ORDERS (list)
+    | GET /api/get_orders  [Auth required]  ?page=1 &status=pending
+    |-----------------------------------------------------------------------*/
+    public function get_orders(): void
+    {
+        $user_id = $this->require_token_user_id();
+        $this->ensure_orders_table();
+
+        $current_page   = max(1, (int) ($this->input->get('page') ?? 1));
+        $items_per_page = 10;
+        $offset         = ($current_page - 1) * $items_per_page;
+        $status_filter  = trim($this->input->get('status') ?? '');
+        $valid_statuses = ['pending', 'confirmed', 'processing', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'];
+
+        $this->db->where('user_id', $user_id);
+        if ($status_filter !== '' && in_array($status_filter, $valid_statuses, true)) {
+            $this->db->where('status', $status_filter);
+        }
+        $total_orders = $this->db->count_all_results('orders'); // resets builder automatically
+
+        $this->db->where('user_id', $user_id);
+        if ($status_filter !== '' && in_array($status_filter, $valid_statuses, true)) {
+            $this->db->where('status', $status_filter);
+        }
+        $orders = $this->db->order_by('id', 'DESC')->limit($items_per_page, $offset)->get('orders')->result();
+
+        $order_list = array_map(function ($order) {
+            $first_item = $this->db->where('order_id', $order->id)->limit(1)->get('order_items')->row();
+            return [
+                'order_id'          => (int) $order->id,
+                'order_number'      => $order->order_number,
+                'status'            => $order->status,
+                'payment_method'    => $order->payment_method,
+                'payment_status'    => $order->payment_status,
+                'total_amount'      => (float) $order->total_amount,
+                'total_items'       => (int) $order->total_items,
+                'first_item_name'   => $first_item->product_name ?? '',
+                'first_item_image'  => $first_item->product_image ?? '',
+                'created_at'        => $order->created_at,
+            ];
+        }, $orders);
+
+        $this->send_response(true, 'Orders fetched successfully.', [
+            'total_orders'   => $total_orders,
+            'current_page'   => $current_page,
+            'items_per_page' => $items_per_page,
+            'total_pages'    => (int) ceil($total_orders / $items_per_page),
+            'orders'         => $order_list,
+        ]);
+    }
+
+    /*-----------------------------------------------------------------------
+    | GET ORDER DETAILS
+    | GET /api/get_order_details/{order_id}  [Auth required]
+    |-----------------------------------------------------------------------*/
+    public function get_order_details(int $order_id = 0): void
+    {
+        $user_id = $this->require_token_user_id();
+        $this->ensure_orders_table();
+
+        if ($order_id <= 0) {
+            $this->send_response(false, 'A valid order ID is required.', null, 400);
+        }
+
+        $order = $this->format_order_full($order_id, $user_id);
+
+        if (!$order) {
+            $this->send_response(false, 'Order not found.', null, 404);
+        }
+
+        $this->send_response(true, 'Order details fetched successfully.', $order);
+    }
+
+    /*-----------------------------------------------------------------------
+    | CANCEL ORDER
+    | POST /api/cancel_order  [Auth required]
+    | Body: { "order_id", "reason" }
+    |-----------------------------------------------------------------------*/
+    public function cancel_order(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_orders_table();
+
+        $order_id = (int) $this->input_value('order_id');
+        $reason   = $this->input_value('reason');
+
+        if ($order_id <= 0) {
+            $this->send_response(false, 'A valid order ID is required.', null, 400);
+        }
+
+        $order = $this->db->get_where('orders', [
+            'id'      => $order_id,
+            'user_id' => $user_id,
+        ])->row();
+
+        if (!$order) {
+            $this->send_response(false, 'Order not found.', null, 404);
+        }
+
+        $cancellable_statuses = ['pending', 'confirmed'];
+        if (!in_array($order->status, $cancellable_statuses, true)) {
+            $this->send_response(false, 'Order cannot be cancelled. Current status: ' . $order->status, null, 400);
+        }
+
+        $this->db->trans_begin();
+
+        $this->db->where('id', $order_id)->update('orders', [
+            'status'        => 'cancelled',
+            'cancelled_by'  => 'user',
+            'cancel_reason' => $reason,
+            'updated_at'    => date('Y-m-d H:i:s'),
+        ]);
+
+        // Only restore stock if it was actually deducted (COD deducts at placement,
+        // online deducts only after payment is verified/paid).
+        if ($order->payment_method === 'cod' || $order->payment_status === 'paid') {
+            $this->restore_stock_for_order($order_id);
+        }
+
+        $this->insert_status_history($order_id, 'cancelled', $reason !== '' ? $reason : 'Cancelled by user', 'user');
+
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            $this->send_response(false, 'Failed to cancel order. Please try again.', null, 500);
+        }
+
+        $this->db->trans_commit();
+
+        $this->send_response(true, 'Order cancelled successfully.', [
+            'order_id'     => $order_id,
+            'order_number' => $order->order_number,
+            'status'       => 'cancelled',
+        ]);
+    }
+
+    /*=======================================================================
+    | STATIC CONTENT ENDPOINTS
+    |=======================================================================*/
+
+    /*-----------------------------------------------------------------------
+    | PRIVACY POLICY
+    | GET /api/privacy_policy
+    |-----------------------------------------------------------------------*/
+    public function privacy_policy(): void
+    {
+        $content = '
+                <h2>1. Introduction</h2>
+            <p>Ghanshyam Murtibhandar ("we", "us", "our") values the trust you place in us when you use our mobile application and website to browse and purchase idols, murtis, puja it                ems, and other religious products. This Privacy Policy explains what information we collect, how we use it, and the choices you have regarding your data.</p>
+
+            <h2>2. Information We Collect</h2>
+            <ul>
+                <li><strong>Account Information:</strong> Full name, email address, mobile number, shop name (if applicable), and profile image.</li>
+                <li><strong>Delivery Information:</strong> Shipping address(es), landmark, city, state, pincode, and country for order delivery.</li>
+                <li><strong>Order & Transaction Information:</strong> Products viewed, added to cart, purchased, order history, quantities, and pricing.</li>
+                <li><strong>Verification Information:</strong> Mobile number and OTP used to verify your identity during login.</li>
+                <li><strong>Device & Usage Information:</strong> Device type, operating system, IP address, and app usage patterns, collected automatically for security and performance monitoring.</li>
+            </ul>
+
+            <h2>3. How We Use Your Information</h2>
+            <ul>
+                <li>To create and manage your account and verify your identity via OTP.</li>
+                <li>To process orders, calculate pricing, manage your cart, and arrange delivery of murtis and puja items to your saved address.</li>
+                <li>To communicate order confirmations, delivery updates, and important account or service notifications.</li>
+                <li>To respond to customer support queries and resolve complaints regarding orders, products, or account access.</li>
+                <li>To detect fraudulent activity, prevent unauthorized access, and maintain the overall security of our platform.</li>
+                <li>To improve our catalogue, app performance, and user experience based on usage patterns.</li>
+            </ul>
+
+            <h2>4. Information Sharing</h2>
+            <p>We do not sell or rent your personal information to any third party. We may share limited information only in the following situations:</p>
+            <ul>
+                <li><strong>Delivery Partners:</strong> Your name, mobile number, and delivery address are shared with logistics/delivery partners solely to fulfil your order.</li>
+                <li><strong>Service Providers:</strong> Trusted providers who help us with hosting, SMS/OTP delivery, and technical support, bound by confidentiality obligations.</li>
+                <li><strong>Legal Requirements:</strong> If required by applicable law, regulation, or a valid legal request from government authorities.</li>
+            </ul>
+
+            <h2>5. Data Security</h2>
+            <p>We use industry-standard practices to protect your information, including secure authentication (JWT-based sessions), OTP-based login verification, and restricted access to personal data. Login sessions can be invalidated at any time through logout, and inactive or deleted accounts are handled as described below.</p>
+
+            <h2>6. Data Retention</h2>
+            <p>We retain your account and order information for as long as your account remains active. If you request account deletion, your profile is deactivated and associated cart and address data is removed from active use, while limited transaction records may be retained as required for accounting or legal purposes.</p>
+
+            <h2>7. Your Rights</h2>
+            <ul>
+                <li><strong>Access & Update:</strong> You can view and update your profile, email, mobile number, shop name, and address directly within the app.</li>
+                <li><strong>Delete Account:</strong> You can request permanent deactivation of your account and removal of your saved addresses and cart data at any time.</li>
+                <li><strong>Manage Addresses:</strong> You can add, edit, or delete any saved delivery address, and choose a default address.</li>
+                <li><strong>Logout:</strong> You can log out at any time, which immediately invalidates your active session token.</li>
+            </ul>
+
+            <h2>8. Children\'s Privacy</h2>
+            <p>Our services are intended for users who are 18 years of age or older. We do not knowingly collect personal information from minors. If we become aware that a minor\'s data has been collected, we will take steps to promptly delete it.</p>
+
+            <h2>9. Changes to This Policy</h2>
+            <p>We may update this Privacy Policy from time to time to reflect changes in our practices or for legal, operational, or regulatory reasons. Continued use of the app after any update constitutes your acceptance of the revised policy.</p>
+
+            <h2>10. Contact Us</h2>
+            <p>If you have any questions, concerns, or requests regarding this Privacy Policy or your personal data, please reach out to us through the support option available in the app.</p>
+                ';
+
+        $this->send_response(true, 'Privacy Policy fetched successfully.', [
+            'title'        => 'Privacy Policy',
+            'app_name'     => 'Ghanshyam Murtibhandar',
+            'last_updated' => date('Y-m-d'),
+            'content'      => $content,
+        ]);
+    }
+
+    /*-----------------------------------------------------------------------
+    | TERMS & CONDITIONS
+    | GET /api/terms_conditions
+    |-----------------------------------------------------------------------*/
+    public function terms_conditions(): void
+    {
+        $content = '
+            <h2>1. Acceptance of Terms</h2>
+            <p>By registering on or using the Ghanshyam Murtibhandar application, you agree to be bound by these Terms & Conditions. If you do not agree, please discontinue use of the app immediately. These terms apply to all registered users browsing or purchasing idols, murtis, and religious products through our platform.</p>
+
+            <h2>2. Account Registration & Verification</h2>
+            <p>You must provide accurate name, email, and mobile number details at the time of registration. Login is verified using a One-Time Password (OTP) sent to your registered mobile number. You are responsible for keeping your OTP confidential and must not share it with anyone. Any activity carried out through a successfully verified session is considered authorized by you.</p>
+
+            <h2>3. Product Listings, Pricing & Availability</h2>
+            <p>All idols, murtis, and puja items listed on the app are subject to availability. We make reasonable efforts to display accurate product images, descriptions, pricing (price and MRP), and stock levels; however, prices, offers, and stock quantity may change without prior notice. Since many of our products are handcrafted, minor variations in size, colour, finish, or design compared to the displayed image may occur.</p>
+
+            <h2>4. Cart & Ordering</h2>
+            <p>You may add products to your cart, update quantities, or remove items before placing an order. Orders are subject to confirmation of product availability at the time of checkout. We reserve the right to cancel or adjust an order if a product becomes unavailable, incorrectly priced, or out of stock after it was added to your cart.</p>
+
+            <h2>5. Delivery</h2>
+            <p>You are responsible for providing a complete and accurate delivery address, including city, state, pincode, and landmark, to ensure smooth delivery. Delivery timelines may vary based on your location, product type, and courier availability. As many products are fragile (idols and murtis), please inspect your package carefully at the time of delivery and report any visible damage immediately through customer support.</p>
+
+            <h2>6. Cancellation & Returns</h2>
+            <p>Cancellation requests are accepted only before an order has been dispatched. Given the delicate and often customized nature of murtis and religious items, returns or replacements are considered only in cases of damage during transit, manufacturing defects, or an incorrect item being delivered, and must be reported within a reasonable time of delivery with supporting evidence (such as photographs).</p>
+
+            <h2>7. User Conduct</h2>
+            <p>You agree not to misuse the app, attempt unauthorized access to other accounts, submit false information, or use the platform for any unlawful purpose. Any misuse, fraudulent activity, or abusive behaviour towards our support team may result in restriction, suspension, or permanent deactivation of your account.</p>
+
+            <h2>8. Account Deactivation</h2>
+            <p>You may request deletion of your account at any time. Upon deletion, your account is deactivated, and your saved cart and address information will be removed. Certain order records may be retained as required for accounting, legal, or dispute-resolution purposes.</p>
+
+            <h2>9. Intellectual Property</h2>
+            <p>All content on the app, including product images, descriptions, logos, and design elements, is the property of Ghanshyam Murtibhandar and is protected under applicable intellectual property laws. You may not copy, reproduce, or redistribute any content without our prior written consent.</p>
+
+            <h2>10. Limitation of Liability</h2>
+            <p>We strive to ensure accurate listings and timely delivery; however, we shall not be held liable for delays, damages, or losses caused by factors beyond our reasonable control, including courier delays, incorrect address information provided by the user, or unforeseen circumstances. Our liability, where applicable, shall be limited to the value of the specific order in question.</p>
+
+            <h2>11. Changes to These Terms</h2>
+            <p>We may revise these Terms & Conditions periodically to reflect changes in our services, policies, or legal requirements. Continued use of the app after such changes constitutes your acceptance of the updated terms.</p>
+
+            <h2>12. Governing Law</h2>
+            <p>These Terms & Conditions shall be governed by and construed in accordance with the laws of India, and any disputes shall be subject to the jurisdiction of the competent courts in the applicable region.</p>
+
+            <h2>13. Contact Us</h2>
+            <p>For any questions regarding these Terms & Conditions, please contact us through the support option available within the Ghanshyam Murtibhandar app.</p>
+                ';
+
+        $this->send_response(true, 'Terms & Conditions fetched successfully.', [
+            'title'        => 'Terms & Conditions',
+            'app_name'     => 'Ghanshyam Murtibhandar',
+            'last_updated' => date('Y-m-d'),
+            'content'      => $content,
+        ]);
+    }
+
+    /*-----------------------------------------------------------------------
+    | REFUND POLICY
+    | GET /api/refund_policy
+    |-----------------------------------------------------------------------*/
+    public function refund_policy(): void
+    {
+        $content = '
+            <h2>1. Overview</h2>
+            <p>Ghanshyam Murtibhandar aims to provide carefully packed idols, murtis, puja items, and religious products. This Refund Policy explains when cancellations, replacements, and refunds may be considered for purchases made through our application or website.</p>
+
+            <h2>2. Order Cancellation</h2>
+            <p>You may request cancellation only before the order has been dispatched. Once an order is dispatched or handed over to the delivery partner, cancellation may not be available. If a prepaid order is successfully cancelled before dispatch, the eligible refund will be processed to the original payment method.</p>
+
+            <h2>3. Damaged, Defective, or Incorrect Items</h2>
+            <p>Because many products are fragile and handcrafted, refunds or replacements are considered only when an item is damaged in transit, has a manufacturing defect, or the wrong item is delivered. Please report the issue through customer support as soon as possible after delivery and share clear photographs or video evidence of the product, packaging, and invoice/order details.</p>
+
+            <h2>4. Non-Refundable Cases</h2>
+            <ul>
+                <li>Products damaged due to misuse, mishandling, or improper installation after delivery.</li>
+                <li>Minor colour, size, finish, or design variations in handcrafted idols or murtis.</li>
+                <li>Requests made without required proof such as photos, videos, or order details.</li>
+                <li>Customized, made-to-order, or specially arranged products, unless damaged, defective, or incorrect.</li>
+                <li>Products returned without prior approval from our support team.</li>
+            </ul>
+
+            <h2>5. Return & Replacement Process</h2>
+            <p>If your request is approved, our support team will guide you through the return, replacement, or refund process. The product must be unused, complete, and returned with original packaging, accessories, and invoice where applicable. Replacement is subject to product availability.</p>
+
+            <h2>6. Refund Processing</h2>
+            <p>Approved refunds for prepaid orders will be initiated to the original payment method. The time taken for the refunded amount to reflect may vary depending on the bank, payment gateway, or wallet provider. Shipping, handling, or convenience charges may be deducted where applicable unless the refund is due to our error.</p>
+
+            <h2>7. Cash on Delivery Orders</h2>
+            <p>For eligible Cash on Delivery orders, refunds may be processed through a bank transfer or another available method after verification of the customer and order details.</p>
+
+            <h2>8. Final Decision</h2>
+            <p>All refund, return, and replacement requests are reviewed by Ghanshyam Murtibhandar based on product condition, evidence provided, order status, and applicable policy terms. Our decision will be final in cases of misuse, incomplete evidence, or policy abuse.</p>
+
+            <h2>9. Policy Updates</h2>
+            <p>We may update this Refund Policy from time to time to reflect changes in our services, logistics process, payment providers, or legal requirements. Continued use of the app after any update constitutes your acceptance of the revised policy.</p>
+
+            <h2>10. Contact Us</h2>
+            <p>For cancellation, return, replacement, or refund requests, please contact us through the support option available within the Ghanshyam Murtibhandar app.</p>
+                ';
+
+        $this->send_response(true, 'Refund Policy fetched successfully.', [
+            'title'        => 'Refund Policy',
+            'app_name'     => 'Ghanshyam Murtibhandar',
+            'last_updated' => date('Y-m-d'),
+            'content'      => $content,
+        ]);
+    }
+
     public function logout_user(): void
     {
-        $this->validate_token(); // confirms token is valid
+        $this->require_method('POST');
 
-        $this->send_response(true, 'You have been logged out.');
+        $decoded = $this->validate_token(true);
+        $token = $decoded->token;
+
+        if (!$this->db->table_exists('token_blacklist')) {
+            $this->send_response(false, 'token_blacklist table is missing. Please create it first.', null, 500);
+        }
+
+        $exists = $this->db
+            ->where('token', $token)
+            ->count_all_results('token_blacklist') > 0;
+
+        if (!$exists) {
+            $this->db->insert('token_blacklist', [
+                'token'      => $token,
+                'expires_at' => date('Y-m-d H:i:s', $decoded->exp ?? time()),
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        $this->send_response(true, 'Logout successful - token invalidated.');
     }
 }

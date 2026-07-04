@@ -263,7 +263,7 @@
                 </div>
             <?php endif; ?>
 
-            <form method="post" action="<?= site_url('login') ?>">
+            <form method="post" action="<?= site_url('admin') ?>">
 
                 <input type="hidden"
                     name="<?= $this->security->get_csrf_token_name(); ?>"
@@ -298,7 +298,7 @@
             </form>
 
             <div class="login-footer">
-                <p>Don't have an account? <a href="<?= base_url('register') ?>">Register here</a></p>
+                <p>Don't have an account? <a href="<?= site_url('register') ?>">Register here</a></p>
             </div>
         </div>
     </div>

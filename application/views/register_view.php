@@ -337,7 +337,7 @@
             </form>
 
             <div class="login-footer">
-                <p>Already have an account? <a href="<?= base_url('login') ?>">Sign in</a></p>
+                <p>Already have an account? <a href="<?= site_url('admin') ?>">Sign in</a></p>
             </div>
         </div>
     </div>

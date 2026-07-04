@@ -49,10 +49,24 @@ defined('BASEPATH') or exit('No direct script access allowed');
 | Examples:	my-controller/index	-> my_controller/index
 |		my-controller/my-method	-> my_controller/my_method
 */
-$route['default_controller'] = 'Login';
+$route['default_controller'] = 'Home';
 
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;
+
+/*
+|--------------------------------------------------------------------------
+| Public Pages
+|--------------------------------------------------------------------------
+*/
+$route['privacy_policy']   = 'Pages/privacy_policy';
+$route['terms_conditions'] = 'Pages/terms_conditions';
+$route['terms_condition']  = 'Pages/terms_conditions';
+$route['terms_and_conditions'] = 'Pages/terms_conditions';
+$route['terms_and_condition']  = 'Pages/terms_conditions';
+$route['refund_policy']    = 'Pages/refund_policy';
+$route['refund_policies']  = 'Pages/refund_policy';
+$route['delete_account']   = 'Pages/delete_account';
 
 /*
 |--------------------------------------------------------------------------
@@ -60,6 +74,7 @@ $route['translate_uri_dashes'] = FALSE;
 |--------------------------------------------------------------------------
 */
 $route['login']    = 'Login/login';
+$route['admin']    = 'Login/login';
 $route['register'] = 'Login/register';
 $route['logout']   = 'Login/logout';
 $route['profile']  = 'Dashboard/profile';
@@ -101,9 +116,10 @@ $route['product/delete/(:num)'] = 'Product/delete/$1';
 |--------------------------------------------------------------------------
 */
 
+$route['api/register_user'] = 'api/register_user';
 $route['api/send_otp']    = 'api/send_otp';
 $route['api/verify_otp']  = 'api/verify_otp';
-$route['api/register_user'] = 'api/register_user';
+$route['api/logout'] = 'api/logout_user';
 $route['api/logout_user'] = 'api/logout_user';
 $route['api/get_my_profile']                  = 'api/get_my_profile';
 $route['api/update_my_profile']               = 'api/update_my_profile';
@@ -112,3 +128,23 @@ $route['api/get_category_detail/(:num)']      = 'api/get_category_detail/$1';
 $route['api/get_products_by_category/(:num)'] = 'api/get_products_by_category/$1';
 $route['api/get_product_list']                = 'api/get_product_list';
 $route['api/get_product_detail/(:num)']       = 'api/get_product_detail/$1';
+$route['api/add_to_cart']                     = 'api/add_to_cart';
+$route['api/get_cart']                        = 'api/get_cart';
+$route['api/update_cart_quantity']            = 'api/update_cart_quantity';
+$route['api/remove_from_cart']                = 'api/remove_from_cart';
+$route['api/clear_cart']                      = 'api/clear_cart';
+$route['api/get_addresses']                   = 'api/get_addresses';
+$route['api/save_address']                    = 'api/save_address';
+$route['api/update_address']                  = 'api/update_address';
+$route['api/delete_address']                  = 'api/delete_address';
+$route['api/delete_account']                  = 'api/delete_account';
+$route['api/privacy_policy']                  = 'api/privacy_policy';
+$route['api/terms_conditions']                = 'api/terms_conditions';
+$route['api/terms_condition']                 = 'api/terms_conditions';
+$route['api/refund_policy']                   = 'api/refund_policy';
+$route['api/refund_policies']                 = 'api/refund_policy';
+$route['api/place_order']                    = 'api/place_order';
+$route['api/verify_order_payment']           = 'api/verify_order_payment';
+$route['api/get_orders']                     = 'api/get_orders';
+$route['api/get_order_details/(:num)']       = 'api/get_order_details/$1';
+$route['api/cancel_order']                   = 'api/cancel_order';

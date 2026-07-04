@@ -21,7 +21,7 @@ class Login extends CI_Controller
         $CI = &get_instance();
 
         if (!$CI->session->userdata('admin_id')) {
-            redirect('login');
+            redirect('admin');
         }
     }
 
@@ -202,7 +202,7 @@ class Login extends CI_Controller
                     'Registration Successful. Please Login.'
                 );
 
-                redirect('login');
+                redirect('admin');
             } else {
                 $data['error'] = 'Registration Failed';
 
@@ -228,6 +228,6 @@ class Login extends CI_Controller
 
         $this->session->sess_destroy();
 
-        redirect('login');
+        redirect('admin');
     }
 }
