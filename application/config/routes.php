@@ -112,6 +112,18 @@ $route['product/delete/(:num)'] = 'Product/delete/$1';
 
 /*
 |--------------------------------------------------------------------------
+| Orders
+|--------------------------------------------------------------------------
+*/
+$route['order']               = 'Order/index';
+$route['orders']              = 'Order/index';
+$route['order/view/(:num)']   = 'Order/view/$1';
+$route['orders/view/(:num)']  = 'Order/view/$1';
+$route['order/print_label/(:num)']   = 'Order/print_label/$1';
+$route['order/print_invoice/(:num)'] = 'Order/print_invoice/$1';
+
+/*
+|--------------------------------------------------------------------------
 | API
 |--------------------------------------------------------------------------
 */

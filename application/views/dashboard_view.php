@@ -1,303 +1,4 @@
-<?php if ($this->session->flashdata('success')): ?>
-    <div class="alert-success">
-        <i class="fas fa-check-circle"></i>
-        <?= $this->session->flashdata('success') ?>
-    </div>
-<?php endif; ?>
-
-<div class="page-header">
-    <div>
-        <h4>Dashboard</h4>
-        <p>Welcome back, <strong><?= htmlspecialchars($this->session->userdata('admin_name')) ?></strong>! Here's your shop overview.</p>
-    </div>
-    <div class="header-actions">
-        <a href="<?= site_url('product/add') ?>" class="btn-primary">
-            <i class="fas fa-plus"></i> Add Product
-        </a>
-        <a href="<?= site_url('order') ?>" class="btn-secondary">
-            <i class="fas fa-shopping-cart"></i> Orders
-        </a>
-    </div>
-</div>
-
-<!-- REVENUE STATS -->
-<div class="stats-grid">
-    <div class="stat-card revenue">
-        <div class="stat-icon">
-            <i class="fas fa-rupee-sign"></i>
-        </div>
-        <div class="stat-content">
-            <p class="stat-label">Total Revenue</p>
-            <h3 class="stat-value">₹<?= number_format($total_revenue, 2) ?></h3>
-            <span class="stat-meta">All time</span>
-        </div>
-    </div>
-
-    <div class="stat-card today">
-        <div class="stat-icon">
-            <i class="fas fa-calendar-day"></i>
-        </div>
-        <div class="stat-content">
-            <p class="stat-label">Today's Revenue</p>
-            <h3 class="stat-value">₹<?= number_format($today_revenue, 2) ?></h3>
-            <span class="stat-meta"><?= date('d M Y') ?></span>
-        </div>
-    </div>
-
-    <div class="stat-card month">
-        <div class="stat-icon">
-            <i class="fas fa-calendar-alt"></i>
-        </div>
-        <div class="stat-content">
-            <p class="stat-label">This Month</p>
-            <h3 class="stat-value">₹<?= number_format($month_revenue, 2) ?></h3>
-            <span class="stat-meta"><?= date('F Y') ?></span>
-        </div>
-    </div>
-
-    <div class="stat-card customers">
-        <div class="stat-icon">
-            <i class="fas fa-users"></i>
-        </div>
-        <div class="stat-content">
-            <p class="stat-label">Total Customers</p>
-            <h3 class="stat-value"><?= number_format($total_customers) ?></h3>
-            <span class="stat-meta">Registered users</span>
-        </div>
-    </div>
-</div>
-
-<!-- ORDER & PRODUCT STATS -->
-<div class="secondary-stats">
-    <div class="stat-mini">
-        <i class="fas fa-shopping-bag"></i>
-        <div>
-            <strong><?= number_format($total_orders) ?></strong>
-            <span>Total Orders</span>
-        </div>
-    </div>
-    <div class="stat-mini pending">
-        <i class="fas fa-clock"></i>
-        <div>
-            <strong><?= number_format($pending_orders) ?></strong>
-            <span>Pending Orders</span>
-        </div>
-    </div>
-    <div class="stat-mini processing">
-        <i class="fas fa-sync-alt"></i>
-        <div>
-            <strong><?= number_format($processing_orders) ?></strong>
-            <span>Processing</span>
-        </div>
-    </div>
-    <div class="stat-mini completed">
-        <i class="fas fa-check-circle"></i>
-        <div>
-            <strong><?= number_format($completed_orders) ?></strong>
-            <span>Completed</span>
-        </div>
-    </div>
-    <div class="stat-mini products">
-        <i class="fas fa-boxes"></i>
-        <div>
-            <strong><?= number_format($total_products) ?></strong>
-            <span>Total Products</span>
-        </div>
-    </div>
-    <div class="stat-mini low-stock">
-        <i class="fas fa-exclamation-triangle"></i>
-        <div>
-            <strong><?= number_format($low_stock_count) ?></strong>
-            <span>Low Stock</span>
-        </div>
-    </div>
-</div>
-
-<!-- CHARTS ROW -->
-<div class="charts-grid">
-    <div class="chart-card">
-        <div class="chart-header">
-            <h6><i class="fas fa-chart-line"></i> Revenue Trend (Last 7 Days)</h6>
-        </div>
-        <div class="chart-body">
-            <canvas id="revenueChart"></canvas>
-        </div>
-    </div>
-
-    <div class="chart-card">
-        <div class="chart-header">
-            <h6><i class="fas fa-chart-pie"></i> Orders by Status</h6>
-        </div>
-        <div class="chart-body">
-            <canvas id="orderStatusChart"></canvas>
-        </div>
-    </div>
-</div>
-
-<!-- RECENT ORDERS & LOW STOCK -->
-<div class="tables-grid">
-    <!-- RECENT ORDERS -->
-    <div class="table-card">
-        <div class="table-card-header">
-            <h6><i class="fas fa-shopping-cart"></i> Recent Orders</h6>
-            <a href="<?= site_url('order') ?>" class="link-primary">View All <i class="fas fa-arrow-right"></i></a>
-        </div>
-        <div class="table-responsive">
-            <?php if (!empty($recent_orders)): ?>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Order ID</th>
-                            <th>Customer</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($recent_orders as $order): ?>
-                            <tr>
-                                <td>
-                                    <strong class="order-number">#<?= $order['order_number'] ?></strong>
-                                </td>
-                                <td>
-                                    <div class="customer-info">
-                                        <span class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></span>
-                                        <span class="customer-mobile"><?= $order['mobile'] ?? '' ?></span>
-                                    </div>
-                                </td>
-                                <td class="amount">₹<?= number_format($order['total_amount'], 2) ?></td>
-                                <td>
-                                    <?php
-                                    $status_class = [
-                                        'pending' => 'badge-warning',
-                                        'processing' => 'badge-info',
-                                        'shipped' => 'badge-primary',
-                                        'delivered' => 'badge-success',
-                                        'cancelled' => 'badge-danger'
-                                    ];
-                                    $class = $status_class[$order['status']] ?? 'badge-secondary';
-                                    ?>
-                                    <span class="badge <?= $class ?>"><?= ucfirst($order['status']) ?></span>
-                                </td>
-                                <td class="date"><?= date('d M, h:i A', strtotime($order['created_at'])) ?></td>
-                                <td>
-                                    <a href="<?= site_url('orders/view/' . $order['id']) ?>" 
-                                       class="btn-action" 
-                                       title="View Details">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php else: ?>
-                <div class="empty-state">
-                    <i class="fas fa-shopping-cart"></i>
-                    <p>No orders yet</p>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- LOW STOCK ALERT -->
-    <div class="table-card alert-card">
-        <div class="table-card-header">
-            <h6><i class="fas fa-exclamation-triangle"></i> Low Stock Alert</h6>
-            <a href="<?= site_url('product') ?>" class="link-danger">View All <i class="fas fa-arrow-right"></i></a>
-        </div>
-        <div class="low-stock-list">
-            <?php if (!empty($low_stock_products)): ?>
-                <?php foreach ($low_stock_products as $product): ?>
-                    <div class="low-stock-item">
-                        <div class="product-thumb">
-                            <?php if (!empty($product['image'])): ?>
-                                <img src="<?= base_url('uploads/products/' . $product['image']) ?>" 
-                                     alt="<?= htmlspecialchars($product['name']) ?>">
-                            <?php else: ?>
-                                <div class="thumb-placeholder">
-                                    <i class="fas fa-image"></i>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="product-info">
-                            <strong><?= htmlspecialchars($product['name']) ?></strong>
-                            <span class="stock-warning">
-                                <i class="fas fa-box"></i> Only <?= $product['stock'] ?> left
-                            </span>
-                        </div>
-                        <a href="<?= site_url('product/edit/' . $product['id']) ?>" class="btn-restock">
-                            <i class="fas fa-plus"></i> Restock
-                        </a>
-                    </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div class="empty-state small">
-                    <i class="fas fa-check-circle"></i>
-                    <p>All products are well stocked!</p>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Chart.js Script -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-// Revenue Chart
-const revenueData = <?= $revenue_chart ?>;
-const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-new Chart(revenueCtx, {
-    type: 'line',
-    data: {
-        labels: revenueData.map(d => d.date),
-        datasets: [{
-            label: 'Revenue (₹)',
-            data: revenueData.map(d => d.amount),
-            borderColor: '#E01020',
-            backgroundColor: 'rgba(224, 16, 32, 0.1)',
-            tension: 0.4,
-            fill: true
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-            y: { beginAtZero: true, grid: { color: '#2a2a2a' }, ticks: { color: '#999' } },
-            x: { grid: { display: false }, ticks: { color: '#999' } }
-        }
-    }
-});
-
-// Order Status Chart
-const orderStatus = <?= $order_status_chart ?>;
-const orderCtx = document.getElementById('orderStatusChart').getContext('2d');
-new Chart(orderCtx, {
-    type: 'doughnut',
-    data: {
-        labels: ['Pending', 'Processing', 'Completed'],
-        datasets: [{
-            data: [orderStatus.pending, orderStatus.processing, orderStatus.completed],
-            backgroundColor: ['#ff9800', '#2196F3', '#4caf50'],
-            borderWidth: 0
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { position: 'bottom', labels: { color: '#fff', padding: 15 } }
-        }
-    }
-});
-</script>
 <style>
-    /* ========== DASHBOARD STYLES ========== */
-
 /* Page Header */
 .page-header {
     display: flex;
@@ -816,61 +517,94 @@ new Chart(orderCtx, {
     .page-header {
         flex-direction: column;
         align-items: flex-start;
+        gap: 12px;
     }
     
     .header-actions {
         width: 100%;
+        gap: 8px;
     }
     
     .header-actions a {
         flex: 1;
         justify-content: center;
+        padding: 10px;
+        font-size: 13px;
     }
     
+    /* 2 Cards per row on mobile */
     .stats-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px;
+    }
+
+    .stat-card {
+        padding: 14px 10px;
+        gap: 10px;
+        border-radius: 10px;
+    }
+
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+        border-radius: 8px;
+    }
+
+    .stat-label {
+        font-size: 10px;
+        margin-bottom: 2px;
+    }
+
+    .stat-value {
+        font-size: 18px !important;
+        margin-bottom: 2px;
+    }
+
+    .stat-meta {
+        font-size: 10px;
     }
     
     .secondary-stats {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px;
+    }
+
+    .stat-mini {
+        padding: 12px 10px;
+        gap: 8px;
+        border-radius: 8px;
+    }
+
+    .stat-mini i {
+        font-size: 16px;
+    }
+
+    .stat-mini strong {
+        font-size: 16px;
+    }
+
+    .stat-mini span {
+        font-size: 10px;
     }
     
     .charts-grid {
         grid-template-columns: 1fr;
     }
-    
-    /* Mobile Table to Cards */
-    .data-table thead {
-        display: none;
-    }
-    
-    .data-table, .data-table tbody, .data-table tr, .data-table td {
-        display: block;
+
+    /* Clean Horizontal Touch Scroll Table for Recent Orders */
+    .table-responsive {
         width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
     
-    .data-table tr {
-        margin-bottom: 16px;
-        border: 1px solid var(--border-color);
-        border-radius: 10px;
-        padding: 12px;
-        background: rgba(255,255,255,0.02);
+    .data-table {
+        min-width: 620px;
     }
-    
-    .data-table td {
-        padding: 8px 0;
-        border: none;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .data-table td:before {
-        content: attr(data-label);
-        font-weight: 600;
-        color: #999;
-        font-size: 11px;
-        text-transform: uppercase;
+
+    .data-table th, .data-table td {
+        padding: 10px 12px;
     }
     
     .low-stock-item {
@@ -884,16 +618,328 @@ new Chart(orderCtx, {
 }
 
 @media (max-width: 480px) {
+    .stats-grid,
     .secondary-stats {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px;
+    }
+
+    .stat-card {
+        padding: 12px 8px;
+        gap: 8px;
+    }
+
+    .stat-icon {
+        width: 34px;
+        height: 34px;
+        font-size: 15px;
     }
     
     .stat-value {
-        font-size: 24px;
+        font-size: 16px !important;
     }
     
     .stat-mini strong {
-        font-size: 18px;
+        font-size: 15px !important;
     }
 }
 </style>
+
+<?php if ($this->session->flashdata('success')): ?>
+    <div class="alert-success">
+        <i class="fas fa-check-circle"></i>
+        <?= $this->session->flashdata('success') ?>
+    </div>
+<?php endif; ?>
+
+<div class="page-header">
+    <div>
+        <h4>Dashboard</h4>
+        <p>Welcome back, <strong><?= htmlspecialchars($this->session->userdata('admin_name')) ?></strong>! Here's your shop overview.</p>
+    </div>
+    <div class="header-actions">
+        <a href="<?= site_url('product/add') ?>" class="btn-primary">
+            <i class="fas fa-plus"></i> Add Product
+        </a>
+        <a href="<?= site_url('order') ?>" class="btn-secondary">
+            <i class="fas fa-shopping-cart"></i> Orders
+        </a>
+    </div>
+</div>
+
+<!-- REVENUE STATS -->
+<div class="stats-grid">
+    <div class="stat-card revenue">
+        <div class="stat-icon">
+            <i class="fas fa-rupee-sign"></i>
+        </div>
+        <div class="stat-content">
+            <p class="stat-label">Total Revenue</p>
+            <h3 class="stat-value">₹<?= number_format($total_revenue, 2) ?></h3>
+            <span class="stat-meta">All time</span>
+        </div>
+    </div>
+
+    <div class="stat-card today">
+        <div class="stat-icon">
+            <i class="fas fa-calendar-day"></i>
+        </div>
+        <div class="stat-content">
+            <p class="stat-label">Today's Revenue</p>
+            <h3 class="stat-value">₹<?= number_format($today_revenue, 2) ?></h3>
+            <span class="stat-meta"><?= date('d M Y') ?></span>
+        </div>
+    </div>
+
+    <div class="stat-card month">
+        <div class="stat-icon">
+            <i class="fas fa-calendar-alt"></i>
+        </div>
+        <div class="stat-content">
+            <p class="stat-label">This Month</p>
+            <h3 class="stat-value">₹<?= number_format($month_revenue, 2) ?></h3>
+            <span class="stat-meta"><?= date('F Y') ?></span>
+        </div>
+    </div>
+
+    <div class="stat-card customers">
+        <div class="stat-icon">
+            <i class="fas fa-users"></i>
+        </div>
+        <div class="stat-content">
+            <p class="stat-label">Total Customers</p>
+            <h3 class="stat-value"><?= number_format($total_customers) ?></h3>
+            <span class="stat-meta">Registered users</span>
+        </div>
+    </div>
+</div>
+
+<!-- ORDER & PRODUCT STATS -->
+<div class="secondary-stats">
+    <div class="stat-mini">
+        <i class="fas fa-shopping-bag"></i>
+        <div>
+            <strong><?= number_format($total_orders) ?></strong>
+            <span>Total Orders</span>
+        </div>
+    </div>
+    <div class="stat-mini pending">
+        <i class="fas fa-clock"></i>
+        <div>
+            <strong><?= number_format($pending_orders) ?></strong>
+            <span>Pending Orders</span>
+        </div>
+    </div>
+    <div class="stat-mini processing">
+        <i class="fas fa-sync-alt"></i>
+        <div>
+            <strong><?= number_format($processing_orders) ?></strong>
+            <span>Processing</span>
+        </div>
+    </div>
+    <div class="stat-mini completed">
+        <i class="fas fa-check-circle"></i>
+        <div>
+            <strong><?= number_format($completed_orders) ?></strong>
+            <span>Completed</span>
+        </div>
+    </div>
+    <div class="stat-mini products">
+        <i class="fas fa-boxes"></i>
+        <div>
+            <strong><?= number_format($total_products) ?></strong>
+            <span>Total Products</span>
+        </div>
+    </div>
+    <div class="stat-mini low-stock">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div>
+            <strong><?= number_format($low_stock_count) ?></strong>
+            <span>Low Stock</span>
+        </div>
+    </div>
+</div>
+
+<!-- CHARTS ROW -->
+<div class="charts-grid">
+    <div class="chart-card">
+        <div class="chart-header">
+            <h6><i class="fas fa-chart-line"></i> Revenue Trend (Last 7 Days)</h6>
+        </div>
+        <div class="chart-body">
+            <canvas id="revenueChart"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <h6><i class="fas fa-chart-pie"></i> Orders by Status</h6>
+        </div>
+        <div class="chart-body">
+            <canvas id="orderStatusChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- RECENT ORDERS & LOW STOCK -->
+<div class="tables-grid">
+    <!-- RECENT ORDERS -->
+    <div class="table-card">
+        <div class="table-card-header">
+            <h6><i class="fas fa-shopping-cart"></i> Recent Orders</h6>
+            <a href="<?= site_url('order') ?>" class="link-primary">View All <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <div class="table-responsive">
+            <?php if (!empty($recent_orders)): ?>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($recent_orders as $order): ?>
+                            <tr>
+                                <td>
+                                    <strong class="order-number">#<?= $order['order_number'] ?></strong>
+                                </td>
+                                <td>
+                                    <div class="customer-info">
+                                        <span class="customer-name"><?= htmlspecialchars($order['customer_name']) ?></span>
+                                        <span class="customer-mobile"><?= $order['mobile'] ?? '' ?></span>
+                                    </div>
+                                </td>
+                                <td class="amount">₹<?= number_format($order['total_amount'], 2) ?></td>
+                                <td>
+                                    <?php
+                                    $status_class = [
+                                        'pending' => 'badge-warning',
+                                        'confirmed' => 'badge-info',
+                                        'processing' => 'badge-info',
+                                        'shipped' => 'badge-primary',
+                                        'delivered' => 'badge-success',
+                                        'cancelled' => 'badge-danger'
+                                    ];
+                                    $class = $status_class[$order['status']] ?? 'badge-secondary';
+                                    ?>
+                                    <span class="badge <?= $class ?>"><?= ucfirst($order['status']) ?></span>
+                                </td>
+                                <td class="date"><?= date('d M, h:i A', strtotime($order['created_at'])) ?></td>
+                                <td>
+                                    <a href="<?= site_url('orders/view/' . $order['id']) ?>" 
+                                       class="btn-action" 
+                                       title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php else: ?>
+                <div class="empty-state">
+                    <i class="fas fa-shopping-cart"></i>
+                    <p>No orders yet</p>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- LOW STOCK ALERT -->
+    <div class="table-card alert-card">
+        <div class="table-card-header">
+            <h6><i class="fas fa-exclamation-triangle"></i> Low Stock Alert</h6>
+            <a href="<?= site_url('product') ?>" class="link-danger">View All <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <div class="low-stock-list">
+            <?php if (!empty($low_stock_products)): ?>
+                <?php foreach ($low_stock_products as $product): ?>
+                    <div class="low-stock-item">
+                        <div class="product-thumb">
+                            <?php if (!empty($product['image'])): ?>
+                                <img src="<?= base_url('uploads/products/' . $product['image']) ?>" 
+                                     alt="<?= htmlspecialchars($product['name']) ?>">
+                            <?php else: ?>
+                                <div class="thumb-placeholder">
+                                    <i class="fas fa-image"></i>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="product-info">
+                            <strong><?= htmlspecialchars($product['name']) ?></strong>
+                            <span class="stock-warning">
+                                <i class="fas fa-box"></i> Only <?= $product['stock'] ?> left
+                            </span>
+                        </div>
+                        <a href="<?= site_url('product/edit/' . $product['id']) ?>" class="btn-restock">
+                            <i class="fas fa-plus"></i> Restock
+                        </a>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="empty-state small">
+                    <i class="fas fa-check-circle"></i>
+                    <p>All products are well stocked!</p>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Script -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Revenue Chart
+const revenueData = <?= $revenue_chart ?>;
+const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+new Chart(revenueCtx, {
+    type: 'line',
+    data: {
+        labels: revenueData.map(d => d.date),
+        datasets: [{
+            label: 'Revenue (₹)',
+            data: revenueData.map(d => d.amount),
+            borderColor: '#E01020',
+            backgroundColor: 'rgba(224, 16, 32, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#2a2a2a' }, ticks: { color: '#999' } },
+            x: { grid: { display: false }, ticks: { color: '#999' } }
+        }
+    }
+});
+
+// Order Status Chart
+const orderStatus = <?= $order_status_chart ?>;
+const orderCtx = document.getElementById('orderStatusChart').getContext('2d');
+new Chart(orderCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Pending', 'Processing', 'Completed'],
+        datasets: [{
+            data: [orderStatus.pending, orderStatus.processing, orderStatus.completed],
+            backgroundColor: ['#ff9800', '#2196F3', '#4caf50'],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { color: '#fff', padding: 15 } }
+        }
+    }
+});
+</script>

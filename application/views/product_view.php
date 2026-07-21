@@ -1,5 +1,8 @@
 <?php if ($this->session->flashdata('success')): ?>
-    <div class="alert-custom alert-success-custom"><i class="fas fa-check-circle"></i><?= $this->session->flashdata('success') ?></div>
+    <div class="alert-custom alert-success-custom">
+        <i class="fas fa-check-circle"></i>
+        <?= $this->session->flashdata('success') ?>
+    </div>
 <?php endif; ?>
 
 <div class="page-header">
@@ -12,41 +15,186 @@
     </a>
 </div>
 
-<div class="card-dark" style="margin-bottom:20px;">
+<!-- Filters Card -->
+<div class="card-dark mb-4">
     <div class="card-body-dark">
-        <div style="display:flex;gap:15px;flex-wrap:wrap;">
-            <input type="text" id="searchProduct" placeholder="Search by product name..." style="flex:1;min-width:200px;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-bg);color:#fff;">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-5 col-sm-6">
+                <input type="text" 
+                       id="searchProduct" 
+                       class="form-control-dark" 
+                       placeholder="Search by product name..." 
+                       autocomplete="off">
+            </div>
             
-            <select id="filterCategory" style="padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-bg);color:#fff;min-width:200px;">
-                <option value="">All Categories</option>
-                <?php foreach ($categories as $cat): ?>
-                    <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
+            <div class="col-md-4 col-sm-6">
+                <select id="filterCategory" class="form-control-dark">
+                    <option value="">All Categories</option>
+                    <?php foreach ($categories as $cat): ?>
+                        <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
 
-            <button onclick="resetFilters()" style="padding:10px 20px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-bg);color:#fff;cursor:pointer;">
-                <i class="fas fa-redo"></i> Reset
-            </button>
-        </div>
-    </div>
-</div>
-
-<div class="card-dark">
-    <div class="card-body-dark" style="padding:0;">
-        <div id="productTableContainer">
-            <div style="padding:50px;text-align:center;color:#666;">
-                <i class="fas fa-spinner fa-spin" style="font-size:32px;"></i>
+            <div class="col-md-3 col-sm-12 d-flex align-items-center gap-2">
+                <button id="resetBtn" onclick="resetFilters()" class="btn-clear" style="display:none;">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+                <span id="resultsInfo" style="color: #999; font-size: 13px; margin-left: auto;"></span>
             </div>
         </div>
     </div>
 </div>
 
-<div id="paginationContainer" style="margin-top:20px;text-align:center;"></div>
+<!-- Products Table Card -->
+<div class="card-dark">
+    <div class="card-body-dark" style="padding:0;">
+        <div id="productTableContainer">
+            <div style="padding:50px;text-align:center;color:#666;">
+                <i class="fas fa-spinner fa-spin" style="font-size:32px; color: var(--primary-red);"></i>
+                <p style="margin-top:10px; color:#999;">Loading products...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="paginationContainer" style="margin-top:20px;"></div>
+
+<style>
+/* Dark Inputs and Filter Controls Styling */
+.form-control-dark {
+    background: #1a1a1a !important;
+    border: 1px solid var(--border-color, #2d2d2d) !important;
+    color: #ffffff !important;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    width: 100%;
+    transition: all 0.2s ease-in-out;
+}
+
+.form-control-dark:focus {
+    outline: none !important;
+    border-color: var(--primary-red, #E01020) !important;
+    box-shadow: 0 0 0 3px rgba(224, 16, 32, 0.15);
+    background: #222222 !important;
+}
+
+select.form-control-dark {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999999' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 14px center !important;
+    padding-right: 36px !important;
+    cursor: pointer;
+}
+
+select.form-control-dark option {
+    background-color: #1a1a1a;
+    color: #ffffff;
+    padding: 10px;
+}
+
+.btn-clear {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color, #2d2d2d);
+    color: #cccccc;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn-clear:hover {
+    background: var(--primary-red, #E01020);
+    border-color: var(--primary-red, #E01020);
+    color: #ffffff;
+}
+
+/* Custom Pagination Styling */
+.custom-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.pagination-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pagination-btn {
+    min-width: 40px;
+    height: 40px;
+    border: 1px solid var(--border-color, #333333);
+    background: #1a1a1a;
+    color: var(--white-text, #ffffff);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+}
+
+.pagination-btn:hover:not(.disabled) {
+    background: var(--primary-red, #E01020);
+    border-color: var(--primary-red, #E01020);
+    color: #ffffff;
+    transform: translateY(-2px);
+}
+
+.pagination-btn.active {
+    background: var(--primary-red, #E01020);
+    border-color: var(--primary-red, #E01020);
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.pagination-btn.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Mobile Responsive Styling */
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .page-header .btn-red {
+        width: 100%;
+        justify-content: center;
+    }
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .table-dark-custom {
+        min-width: 850px;
+    }
+}
+</style>
+
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
-let currentPage = 1;
-let searchTerm = '';
+let currentPage    = 1;
+let searchTerm     = '';
 let categoryFilter = '';
+let searchTimeout  = null;
 
 function loadProducts(page = 1) {
     currentPage = page;
@@ -60,37 +208,48 @@ function loadProducts(page = 1) {
         },
         success: function(response) {
             const data = JSON.parse(response);
-            renderProducts(data.products);
+            renderProducts(data.products, data.pagination);
             renderPagination(data.pagination);
         }
     });
 }
 
-function renderProducts(products) {
+function renderProducts(products, paginationInfo) {
+    updateResetButton();
+
     if (products.length === 0) {
         $('#productTableContainer').html(`
             <div style="padding:50px;text-align:center;color:#666;">
-                <i class="fas fa-box-open" style="font-size:42px;margin-bottom:14px;display:block;"></i>
-                No products found. <a href="<?= site_url('product/add') ?>" style="color:var(--primary-red);">Add your first product</a>
+                <i class="fas fa-box-open" style="font-size:42px;margin-bottom:14px;display:block;opacity:0.4;"></i>
+                <p style="font-size:14px; color:#999; margin:0;">No products found. <a href="<?= site_url('product/add') ?>" style="color:var(--primary-red);">Add your first product</a></p>
             </div>
         `);
+        $('#resultsInfo').text('No products found');
         return;
     }
 
-    let html = `<table class="table-dark-custom">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Image</th>
-                <th>Name</th>
-                <th>Category</th>
-                <th>MRP / Price</th>
-                <th>Stock</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>`;
+    if (paginationInfo) {
+        const { current_page, total_records } = paginationInfo;
+        const start = ((current_page - 1) * 10) + 1;
+        const end   = Math.min(current_page * 10, total_records);
+        $('#resultsInfo').text(`Showing ${start}-${end} of ${total_records} products`);
+    }
+
+    let html = `<div class="table-responsive">
+        <table class="table-dark-custom">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Image</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>MRP / Price</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>`;
 
     products.forEach((p, i) => {
         const img = p.image 
@@ -105,7 +264,7 @@ function renderProducts(products) {
         html += `<tr>
             <td style="color:#666;">${(currentPage - 1) * 10 + i + 1}</td>
             <td>${img}</td>
-            <td><div style="font-weight:600;">${p.name}</div></td>
+            <td><div style="font-weight:600;color:#fff;">${p.name}</div></td>
             <td><span style="background:rgba(224,16,32,0.1);color:var(--primary-red);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;">${p.category_name || '-'}</span></td>
             <td>
                 <div style="font-size:11px;color:#999;">MRP: ₹${parseFloat(p.mrp).toFixed(2)}</div>
@@ -114,13 +273,15 @@ function renderProducts(products) {
             <td><span style="${stockColor}">${p.stock}</span></td>
             <td>${status}</td>
             <td>
-                <a href="<?= site_url('product/edit/') ?>${p.id}" class="action-btn edit" title="Edit"><i class="fas fa-pencil-alt"></i></a>
-                <a href="<?= site_url('product/delete/') ?>${p.id}" class="action-btn delete" title="Delete" onclick="return confirm('Delete this product?')"><i class="fas fa-trash-alt"></i></a>
+                <div style="display:flex;gap:5px;">
+                    <a href="<?= site_url('product/edit/') ?>${p.id}" class="action-btn edit" title="Edit"><i class="fas fa-pencil-alt"></i></a>
+                    <a href="<?= site_url('product/delete/') ?>${p.id}" class="action-btn delete" title="Delete" onclick="return confirm('Delete this product?')"><i class="fas fa-trash-alt"></i></a>
+                </div>
             </td>
         </tr>`;
     });
 
-    html += `</tbody></table>`;
+    html += `</tbody></table></div>`;
     $('#productTableContainer').html(html);
 }
 
@@ -131,33 +292,45 @@ function renderPagination(pagination) {
         return;
     }
 
-    let html = '<div style="display:flex;gap:10px;justify-content:center;align-items:center;">';
+    let html = '<div class="custom-pagination"><div class="pagination-container">';
 
     // Previous button
     if (current_page > 1) {
-        html += `<button onclick="loadProducts(${current_page - 1})" style="padding:8px 15px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-bg);color:#fff;cursor:pointer;"><i class="fas fa-chevron-left"></i></button>`;
+        html += `<button onclick="loadProducts(${current_page - 1})" class="pagination-btn" title="Previous"><i class="fas fa-chevron-left"></i></button>`;
+    } else {
+        html += `<button class="pagination-btn disabled" disabled><i class="fas fa-chevron-left"></i></button>`;
     }
 
     // Show max 3 page buttons
     let startPage = Math.max(1, current_page - 1);
-    let endPage = Math.min(total_pages, startPage + 2);
+    let endPage   = Math.min(total_pages, startPage + 2);
     
     if (endPage - startPage < 2) {
         startPage = Math.max(1, endPage - 2);
     }
 
     for (let i = startPage; i <= endPage; i++) {
-        const active = i === current_page ? 'background:var(--primary-red);' : '';
-        html += `<button onclick="loadProducts(${i})" style="padding:8px 15px;border:1px solid var(--border-color);border-radius:6px;${active}background:var(--card-bg);color:#fff;cursor:pointer;font-weight:${i === current_page ? '700' : '400'};">${i}</button>`;
+        const activeClass = i === current_page ? 'active' : '';
+        html += `<button onclick="loadProducts(${i})" class="pagination-btn ${activeClass}">${i}</button>`;
     }
 
     // Next button
     if (current_page < total_pages) {
-        html += `<button onclick="loadProducts(${current_page + 1})" style="padding:8px 15px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-bg);color:#fff;cursor:pointer;"><i class="fas fa-chevron-right"></i></button>`;
+        html += `<button onclick="loadProducts(${current_page + 1})" class="pagination-btn" title="Next"><i class="fas fa-chevron-right"></i></button>`;
+    } else {
+        html += `<button class="pagination-btn disabled" disabled><i class="fas fa-chevron-right"></i></button>`;
     }
 
-    html += '</div>';
+    html += '</div></div>';
     $('#paginationContainer').html(html);
+}
+
+function updateResetButton() {
+    if (searchTerm || categoryFilter) {
+        $('#resetBtn').show();
+    } else {
+        $('#resetBtn').hide();
+    }
 }
 
 function resetFilters() {
@@ -171,9 +344,13 @@ function resetFilters() {
 $(document).ready(function() {
     loadProducts(1);
 
-    $('#searchProduct').on('keyup', function() {
-        searchTerm = $(this).val();
-        loadProducts(1);
+    $('#searchProduct').on('keyup input', function() {
+        clearTimeout(searchTimeout);
+        const val = $(this).val().trim();
+        searchTimeout = setTimeout(function() {
+            searchTerm = val;
+            loadProducts(1);
+        }, 300);
     });
 
     $('#filterCategory').on('change', function() {
@@ -182,148 +359,3 @@ $(document).ready(function() {
     });
 });
 </script>
-<style>
-    /* ===== MOBILE RESPONSIVE FOR ADD PRODUCT PAGE ===== */
-    @media (max-width: 768px) {
-
-        /* Make columns stack vertically */
-        .row.g-4 {
-            display: block;
-        }
-
-        .col-lg-8,
-        .col-lg-4 {
-            width: 100%;
-            float: none;
-            margin-bottom: 20px;
-        }
-
-        /* Fix clearfix for row */
-        .row:after {
-            content: "";
-            display: table;
-            clear: both;
-        }
-
-        /* Page header - stack vertically */
-        .page-header {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 15px;
-        }
-
-        /* Back button on mobile - inline style fix */
-        .page-header .btn-outline-light-custom {
-            display: inline-flex;
-            width: auto;
-        }
-
-        /* Make form inputs full width */
-        .form-control,
-        .form-select {
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        /* Stack pricing fields vertically */
-        .row.g-3 {
-            display: block;
-        }
-
-        .row.g-3 .col-md-4,
-        .row.g-3 .col-md-6 {
-            width: 100%;
-            margin-bottom: 15px;
-            float: none;
-        }
-
-        /* Clearfix for inner rows */
-        .row.g-3:after {
-            content: "";
-            display: table;
-            clear: both;
-        }
-
-        /* Fix card margins */
-        .card-dark {
-            width: 100%;
-            margin-bottom: 20px;
-            overflow: visible;
-        }
-
-        /* Make buttons full width on mobile */
-        .btn-red,
-        .btn-outline-light-custom {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-        }
-
-        /* Fix button spacing */
-        .card-dark.mt-4 {
-            margin-top: 0;
-        }
-
-        /* Responsive image preview */
-        #imagePreview {
-            width: 100%;
-            height: auto;
-            max-height: 250px;
-            object-fit: cover;
-        }
-
-        /* Adjust textarea height */
-        textarea.form-control {
-            min-height: 100px;
-        }
-
-        /* Small text adjustments */
-        .form-label {
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        /* Ensure proper spacing between elements */
-        .mb-3 {
-            margin-bottom: 16px;
-        }
-
-        .card-body-dark {
-            padding: 16px;
-        }
-
-        .card-header-dark {
-            padding: 12px 16px;
-        }
-    }
-
-    /* Extra small devices (phones under 480px) */
-    @media (max-width: 480px) {
-        .card-body-dark {
-            padding: 12px;
-        }
-
-        .form-control,
-        .form-select {
-            font-size: 16px;
-            /* Prevents zoom on iOS */
-            padding: 8px 12px;
-        }
-
-        .btn-red,
-        .btn-outline-light-custom {
-            padding: 10px;
-            font-size: 14px;
-        }
-
-        .page-header h4 {
-            font-size: 20px;
-            margin-bottom: 5px;
-        }
-
-        .page-header p {
-            font-size: 12px;
-        }
-    }
-</style>

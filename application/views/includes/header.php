@@ -33,6 +33,50 @@
             overflow-x: hidden;
         }
 
+        /* PAGE HEADER & DASHBOARD GRID STYLES (Loaded in <head> to prevent FOUC) */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .page-header h4 {
+            margin: 0;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .page-header p {
+            margin: 4px 0 0 0;
+            color: #999;
+            font-size: 0.9rem;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .secondary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .tables-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
         /* SIDEBAR */
         .sidebar {
             position: fixed;
@@ -579,11 +623,11 @@
     <!-- Marketing -->
     <div class="sidebar-section-title">Marketing</div>
 
-    <a href="<?= base_url('home_banners') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'home_banner' ? 'active' : '' ?>">
+    <a href="<?= base_url('home_banners') ?>" class="sidebar-menu-item <?= ($this->uri->segment(1) == 'home_banners' || $this->uri->segment(1) == 'home_banner') ? 'active' : '' ?>">
         <i class="fas fa-images"></i> Home Banners
     </a>
 
-    <a href="<?= base_url('offers') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'offer' ? 'active' : '' ?>">
+    <a href="<?= base_url('offers') ?>" class="sidebar-menu-item <?= ($this->uri->segment(1) == 'offers' || $this->uri->segment(1) == 'offer') ? 'active' : '' ?>">
         <i class="fas fa-tags"></i> Offers
     </a>
 

@@ -7,7 +7,7 @@ class Home_banners extends CI_Controller {
     {
         parent::__construct();
         if (!$this->session->userdata('admin_id')) {
-            redirect('admin/login');
+            redirect('admin');
         }
         $this->load->helper(['form', 'url', 'file']);
         $this->load->library(['form_validation', 'upload', 'pagination']);
@@ -16,30 +16,26 @@ class Home_banners extends CI_Controller {
     // Listing
     public function index()
     {
-        $search = $this->input->get('search');
-        $status = $this->input->get('status');
-        $type = $this->input->get('type');
-        $sort = $this->input->get('sort', true) ?: 'newest';
+        $search = trim($this->input->get('search', true) ?? '');
+        $status = $this->input->get('status', true);
+        $type   = trim($this->input->get('type', true) ?? '');
+        $sort   = trim($this->input->get('sort', true) ?? 'newest');
 
         $this->db->select('home_banners.*');
         $this->db->from('home_banners');
 
-        // Search
-        if ($search) {
+        if ($search !== '') {
             $this->db->like('title', $search);
         }
 
-        // Filter by status
         if ($status !== null && $status !== '') {
-            $this->db->where('is_active', $status);
+            $this->db->where('is_active', (int)$status);
         }
 
-        // Filter by type
-        if ($type) {
-            $this->db->where('banner_type', $type);
+        if ($type !== '') {
+            $this->db->where('banner_type', strtolower($type));
         }
 
-        // Sorting
         switch ($sort) {
             case 'oldest':
                 $this->db->order_by('created_at', 'ASC');
@@ -51,21 +47,17 @@ class Home_banners extends CI_Controller {
                 $this->db->order_by('created_at', 'DESC');
         }
 
-        // Pagination
-        $config['base_url'] = site_url('admin/home_banners/index');
-        $config['total_rows'] = $this->db->count_all_results('', false);
-        $config['per_page'] = 10;
-        $config['uri_segment'] = 3;
-        $config['reuse_query_string'] = true;
+        $total_records = $this->db->count_all_results('', false);
+        $total_pages   = ceil($total_records / 10);
+        $page          = (int)($this->input->get('page', true) ?: 1);
+        $offset        = ($page - 1) * 10;
 
-        $this->pagination->initialize($config);
+        $this->db->limit(10, $offset);
 
-        $page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
-        $this->db->limit($config['per_page'], $page);
-
-        $data['banners'] = $this->db->get()->result_array();
-        $data['pagination'] = $this->pagination->create_links();
-        $data['page_title'] = 'Home Banners';
+        $data['banners']       = $this->db->get()->result_array();
+        $data['pagination']    = $this->generate_pagination($page, $total_pages);
+        $data['total_records'] = $total_records;
+        $data['page_title']    = 'Home Banners';
 
         $this->load->view('includes/header', $data);
         $this->load->view('banner_view', $data);
@@ -274,5 +266,203 @@ class Home_banners extends CI_Controller {
         }
 
         return true;
+    }
+
+    // AJAX: Get banners with filters and pagination
+    public function get_banners()
+    {
+        $search = trim($this->input->get_post('search', true) ?? '');
+        $status = $this->input->get_post('status', true);
+        $type   = strtolower(trim($this->input->get_post('type', true) ?? ''));
+        $sort   = trim($this->input->get_post('sort', true) ?? 'newest');
+        $page   = (int)($this->input->get_post('page', true) ?: 1);
+        $limit  = 10;
+        $offset = ($page - 1) * $limit;
+
+        $this->db->select('home_banners.*');
+        $this->db->from('home_banners');
+
+        if ($search !== '') {
+            $this->db->like('title', $search);
+        }
+
+        if ($status !== null && $status !== '') {
+            $this->db->where('is_active', (int)$status);
+        }
+
+        if ($type !== '') {
+            $this->db->where('banner_type', $type);
+        }
+
+        $total_records = $this->db->count_all_results('', false);
+        $total_pages   = ceil($total_records / $limit);
+
+        switch ($sort) {
+            case 'oldest':
+                $this->db->order_by('created_at', 'ASC');
+                break;
+            case 'display_order':
+                $this->db->order_by('display_order', 'ASC');
+                break;
+            default:
+                $this->db->order_by('created_at', 'DESC');
+        }
+
+        $this->db->limit($limit, $offset);
+        $banners = $this->db->get()->result_array();
+
+        $html       = $this->generate_banners_html($banners, $offset);
+        $pagination = $this->generate_pagination($page, $total_pages);
+
+        echo json_encode([
+            'status'        => true,
+            'html'          => $html,
+            'pagination'    => $pagination,
+            'total_records' => $total_records,
+            'current_page'  => $page,
+            'total_pages'   => $total_pages,
+            'csrf_hash'     => $this->security->get_csrf_hash()
+        ]);
+    }
+
+    private function generate_banners_html($banners, $offset = 0)
+    {
+        if (empty($banners)) {
+            return '
+                <tr>
+                    <td colspan="10" style="text-align:center; padding:50px; color:#666;">
+                        <i class="fas fa-images" style="font-size:42px; margin-bottom:14px; display:block; opacity:0.4;"></i>
+                        <p style="font-size:14px; color:#999; margin:0;">No banners found.</p>
+                    </td>
+                </tr>
+            ';
+        }
+
+        $html = '';
+        foreach ($banners as $i => $banner) {
+            $serial = $offset + $i + 1;
+            
+            // Image
+            if (!empty($banner['image'])) {
+                $img_html = '<img src="' . base_url('uploads/banners/' . $banner['image']) . '" style="width:100px;height:60px;border-radius:8px;object-fit:cover;border:1px solid var(--border-color);" alt="' . htmlspecialchars($banner['title'], ENT_QUOTES, 'UTF-8') . '">';
+            } else {
+                $img_html = '<div style="width:100px;height:60px;background:var(--light-gray);border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border-color);color:#555;"><i class="fas fa-image"></i></div>';
+            }
+
+            // Subtitle & button
+            $sub_html = '';
+            if (!empty($banner['subtitle'])) {
+                $sub_text = mb_strlen($banner['subtitle']) > 50 ? mb_substr($banner['subtitle'], 0, 50) . '...' : $banner['subtitle'];
+                $sub_html .= '<div style="font-size:11px;color:#999;margin-top:3px;">' . htmlspecialchars($sub_text, ENT_QUOTES, 'UTF-8') . '</div>';
+            }
+            if (!empty($banner['button_text'])) {
+                $sub_html .= '<div style="font-size:10px;color:var(--primary-red);margin-top:3px;"><i class="fas fa-link"></i> ' . htmlspecialchars($banner['button_text'], ENT_QUOTES, 'UTF-8') . '</div>';
+            }
+
+            // Type badge
+            $type_badges = [
+                'home'     => ['class' => 'badge-home', 'icon' => 'home'],
+                'offer'    => ['class' => 'badge-offer', 'icon' => 'tags'],
+                'category' => ['class' => 'badge-category', 'icon' => 'th-large'],
+                'product'  => ['class' => 'badge-product', 'icon' => 'box']
+            ];
+            $type_badge = $type_badges[$banner['banner_type']] ?? $type_badges['home'];
+            $type_html = '<span class="banner-type-badge ' . $type_badge['class'] . '"><i class="fas fa-' . $type_badge['icon'] . '"></i> ' . ucfirst($banner['banner_type']) . '</span>';
+
+            // Start & End dates
+            $start_date_html = !empty($banner['start_date']) ? '<div style="font-size:12px;color:#ccc;">' . date('d M Y', strtotime($banner['start_date'])) . '</div>' : '<span style="color:#666;">-</span>';
+            
+            $end_date_html = '<span style="color:#666;">-</span>';
+            if (!empty($banner['end_date'])) {
+                $end_date_html = '<div style="font-size:12px;color:#ccc;">' . date('d M Y', strtotime($banner['end_date'])) . '</div>';
+                if ($banner['end_date'] < date('Y-m-d')) {
+                    $end_date_html .= '<span style="font-size:10px;color:#e57373;">Expired</span>';
+                }
+            }
+
+            // Status
+            $status_html = $banner['is_active'] 
+                ? '<span class="badge-active">Active</span>' 
+                : '<span class="badge-inactive">Inactive</span>';
+
+            // Created
+            $created_html = '<div style="font-size:12px;color:#ccc;">' . date('d M Y', strtotime($banner['created_at'])) . '</div><div style="font-size:11px;color:#666;">' . date('h:i A', strtotime($banner['created_at'])) . '</div>';
+
+            // Actions
+            $actions_html = '
+                <div style="display:flex;gap:5px;">
+                    <a href="' . site_url('home_banners/edit/' . $banner['id']) . '" class="action-btn edit" title="Edit">
+                        <i class="fas fa-pencil-alt"></i>
+                    </a>
+                    <a href="' . site_url('home_banners/change_status/' . $banner['id']) . '" class="action-btn ' . ($banner['is_active'] ? 'delete' : 'view') . '" title="' . ($banner['is_active'] ? 'Deactivate' : 'Activate') . '">
+                        <i class="fas fa-' . ($banner['is_active'] ? 'eye-slash' : 'eye') . '"></i>
+                    </a>
+                    <a href="' . site_url('home_banners/delete/' . $banner['id']) . '" class="action-btn delete" title="Delete" onclick="return confirm(\'Are you sure you want to delete this banner? This will also delete the uploaded image.\')">
+                        <i class="fas fa-trash-alt"></i>
+                    </a>
+                </div>
+            ';
+
+            $html .= '
+                <tr>
+                    <td style="color:#666;">' . $serial . '</td>
+                    <td>' . $img_html . '</td>
+                    <td><div style="font-weight:600;">' . htmlspecialchars($banner['title'], ENT_QUOTES, 'UTF-8') . '</div>' . $sub_html . '</td>
+                    <td>' . $type_html . '</td>
+                    <td><span style="background:rgba(255,255,255,0.05);padding:4px 10px;border-radius:6px;font-weight:600;font-size:13px;">' . $banner['display_order'] . '</span></td>
+                    <td>' . $start_date_html . '</td>
+                    <td>' . $end_date_html . '</td>
+                    <td>' . $status_html . '</td>
+                    <td>' . $created_html . '</td>
+                    <td>' . $actions_html . '</td>
+                </tr>
+            ';
+        }
+
+        return $html;
+    }
+
+    private function generate_pagination($current_page, $total_pages)
+    {
+        if ($total_pages <= 1) {
+            return '';
+        }
+
+        $html  = '<div class="custom-pagination">';
+        $html .= '<div class="pagination-container">';
+
+        if ($current_page > 1) {
+            $html .= '<button class="pagination-btn" data-page="' . ($current_page - 1) . '" title="Previous"><i class="fas fa-chevron-left"></i></button>';
+        } else {
+            $html .= '<button class="pagination-btn disabled" disabled><i class="fas fa-chevron-left"></i></button>';
+        }
+
+        $start_page = max(1, $current_page - 1);
+        $end_page   = min($total_pages, $start_page + 2);
+
+        if ($end_page - $start_page < 2) {
+            $start_page = max(1, $end_page - 2);
+        }
+
+        for ($i = $start_page; $i <= $end_page; $i++) {
+            $active = $i == $current_page ? 'active' : '';
+            $html .= '<button class="pagination-btn ' . $active . '" data-page="' . $i . '">' . $i . '</button>';
+        }
+
+        if ($end_page < $total_pages) {
+            if ($end_page < $total_pages - 1) {
+                $html .= '<span class="pagination-dots">...</span>';
+            }
+            $html .= '<button class="pagination-btn" data-page="' . $total_pages . '">' . $total_pages . '</button>';
+        }
+
+        if ($current_page < $total_pages) {
+            $html .= '<button class="pagination-btn" data-page="' . ($current_page + 1) . '" title="Next"><i class="fas fa-chevron-right"></i></button>';
+        } else {
+            $html .= '<button class="pagination-btn disabled" disabled><i class="fas fa-chevron-right"></i></button>';
+        }
+
+        $html .= '</div></div>';
+        return $html;
     }
 }

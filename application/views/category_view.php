@@ -1,20 +1,77 @@
 <?php if ($this->session->flashdata('success')): ?>
-    <div class="alert-custom alert-success-custom"><i class="fas fa-check-circle"></i><?= $this->session->flashdata('success') ?></div>
+    <div class="alert-custom alert-success-custom">
+        <i class="fas fa-check-circle"></i>
+        <?= $this->session->flashdata('success') ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($this->session->flashdata('error')): ?>
+    <div class="alert-custom alert-danger-custom">
+        <i class="fas fa-exclamation-circle"></i>
+        <?= $this->session->flashdata('error') ?>
+    </div>
 <?php endif; ?>
 
 <div class="page-header">
     <div>
         <h4>Categories</h4>
-        <p>Manage your product categories.</p>
+        <p>Manage your product categories</p>
     </div>
     <a href="<?= site_url('category/add') ?>" class="btn-red">
         <i class="fas fa-plus"></i> Add Category
     </a>
 </div>
 
-<div class="card-dark">
+<!-- Filters Card -->
+<div class="card-dark mb-4 filter-card-container">
+    <div class="card-body-dark">
+        <div class="row g-2 align-items-center">
+            <div class="col-12 col-md-4">
+                <input type="text" 
+                       id="searchInput" 
+                       class="form-control-dark" 
+                       placeholder="Search by category name..." 
+                       value="<?= htmlspecialchars($this->input->get('search') ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                       autocomplete="off">
+            </div>
+            <div class="col-6 col-md-3">
+                <select id="statusFilter" class="form-control-dark">
+                    <option value="">All Status</option>
+                    <option value="1" <?= $this->input->get('status') === '1' ? 'selected' : '' ?>>Active</option>
+                    <option value="0" <?= $this->input->get('status') === '0' ? 'selected' : '' ?>>Inactive</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <select id="sortFilter" class="form-control-dark">
+                    <option value="newest" <?= ($this->input->get('sort') ?? 'newest') === 'newest' ? 'selected' : '' ?>>Newest First</option>
+                    <option value="oldest" <?= $this->input->get('sort') === 'oldest' ? 'selected' : '' ?>>Oldest First</option>
+                    <option value="name_asc" <?= $this->input->get('sort') === 'name_asc' ? 'selected' : '' ?>>Name (A-Z)</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2 d-flex align-items-center gap-2">
+                <button id="resetFilters" class="btn-clear" style="display: none;">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+                <span id="resultsInfo" style="color: #999; font-size: 12px; margin-left: auto;">
+                    Showing <?= !empty($categories) ? count($categories) : 0 ?> of <?= $total_records ?? count($categories ?? []) ?> categories
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Spinner -->
+<div id="loadingSpinner" style="display: none; text-align: center; padding: 50px;">
+    <div class="spinner-border" style="color: var(--primary-red);" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p style="color: #999; margin-top: 15px;">Updating categories list...</p>
+</div>
+
+<!-- Categories Table Card -->
+<div class="card-dark" id="categoriesTableContainer">
     <div class="card-body-dark" style="padding:0;">
-        <?php if (!empty($categories)): ?>
+        <div class="table-responsive">
             <table class="table-dark-custom">
                 <thead>
                     <tr>
@@ -26,175 +83,371 @@
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <?php foreach ($categories as $i => $cat): ?>
+                <tbody id="categoriesTableBody">
+                    <?php if (!empty($categories)): ?>
+                        <?php foreach ($categories as $i => $cat): ?>
+                            <tr>
+                                <td style="color:#666;"><?= $i + 1 ?></td>
+                                <td>
+                                    <?php if (!empty($cat->image)): ?>
+                                        <img src="<?= base_url('uploads/categories/' . $cat->image) ?>" style="width:42px;height:42px;border-radius:8px;object-fit:cover;border:1px solid var(--border-color);">
+                                    <?php else: ?>
+                                        <div style="width:42px;height:42px;background:var(--light-gray);border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border-color);color:#555;"><i class="fas fa-image"></i></div>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="font-weight:600;"><?= htmlspecialchars($cat->name) ?></td>
+                                <td>
+                                    <?php if ($cat->is_active): ?>
+                                        <span class="badge-active">Active</span>
+                                    <?php else: ?>
+                                        <span class="badge-inactive">Inactive</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="color:#666;font-size:12px;"><?= !empty($cat->created_at) ? date('d M Y', strtotime($cat->created_at)) : '-' ?></td>
+                                <td>
+                                    <a href="<?= site_url('category/edit/' . $cat->id) ?>" class="action-btn edit" title="Edit"><i class="fas fa-pencil-alt"></i></a>
+                                    <a href="<?= site_url('category/delete/' . $cat->id) ?>" class="action-btn delete" title="Delete" onclick="return confirm('Delete this category?')"><i class="fas fa-trash-alt"></i></a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
                         <tr>
-                            <td style="color:#666;"><?= $i + 1 ?></td>
-                            <td>
-                                <?php if (!empty($cat->image)): ?>
-                                    <img src="<?= base_url('uploads/categories/' . $cat->image) ?>" style="width:42px;height:42px;border-radius:8px;object-fit:cover;border:1px solid var(--border-color);">
-                                <?php else: ?>
-                                    <div style="width:42px;height:42px;background:var(--light-gray);border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border-color);color:#555;"><i class="fas fa-image"></i></div>
-                                <?php endif; ?>
-                            </td>
-                            <td style="font-weight:600;"><?= htmlspecialchars($cat->name) ?></td>
-                            <td>
-                                <?php if ($cat->is_active): ?>
-                                    <span class="badge-active">Active</span>
-                                <?php else: ?>
-                                    <span class="badge-inactive">Inactive</span>
-                                <?php endif; ?>
-                            </td>
-                            <td style="color:#666;font-size:12px;"><?= date('d M Y', strtotime($cat->created_at)) ?></td>
-                            <td>
-                                <a href="<?= site_url('category/edit/' . $cat->id) ?>" class="action-btn edit" title="Edit"><i class="fas fa-pencil-alt"></i></a>
-                                <a href="<?= site_url('category/delete/' . $cat->id) ?>" class="action-btn delete" title="Delete" onclick="return confirm('Delete this category?')"><i class="fas fa-trash-alt"></i></a>
+                            <td colspan="6" style="text-align:center; padding:50px; color:#666;">
+                                <i class="fas fa-list" style="font-size:42px; margin-bottom:14px; display:block; opacity:0.4;"></i>
+                                <p style="font-size:14px; color:#999; margin:0;">No categories found.</p>
                             </td>
                         </tr>
-                    <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
-        <?php else: ?>
-            <div style="padding:50px;text-align:center;color:#666;">
-                <i class="fas fa-list" style="font-size:42px;margin-bottom:14px;display:block;"></i>
-                No categories found. <a href="<?= site_url('category/add') ?>" style="color:var(--primary-red);">Create your first category</a>
-            </div>
-        <?php endif; ?>
+        </div>
     </div>
 </div>
 
+<!-- Pagination Container -->
+<div id="paginationContainer" style="margin-top: 20px;">
+    <?php if (!empty($pagination)): ?>
+        <?= $pagination ?>
+    <?php endif; ?>
+</div>
+
 <style>
-    /* ===== MOBILE RESPONSIVE (Table to Cards - No UI Change) ===== */
-    @media (max-width: 768px) {
+/* Dark Inputs and Filter Controls Styling */
+.form-control-dark {
+    background: #1a1a1a !important;
+    border: 1px solid var(--border-color, #2d2d2d) !important;
+    color: #ffffff !important;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    width: 100%;
+    transition: all 0.2s ease-in-out;
+}
 
-        /* Hide table headers on mobile */
-        .table-dark-custom thead {
-            display: none;
+.form-control-dark:focus {
+    outline: none !important;
+    border-color: var(--primary-red, #E01020) !important;
+    box-shadow: 0 0 0 3px rgba(224, 16, 32, 0.15);
+    background: #222222 !important;
+}
+
+select.form-control-dark {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999999' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 14px center !important;
+    padding-right: 36px !important;
+    cursor: pointer;
+}
+
+select.form-control-dark option {
+    background-color: #1a1a1a;
+    color: #ffffff;
+    padding: 10px;
+}
+
+.btn-clear {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color, #2d2d2d);
+    color: #cccccc;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn-clear:hover {
+    background: var(--primary-red, #E01020);
+    border-color: var(--primary-red, #E01020);
+    color: #ffffff;
+}
+
+#categoriesTableContainer {
+    min-height: 350px;
+    transition: opacity 0.3s;
+}
+
+/* Custom Pagination Styling */
+.custom-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.pagination-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pagination-btn {
+    min-width: 40px;
+    height: 40px;
+    border: 1px solid var(--border-color, #333333);
+    background: #1a1a1a;
+    color: var(--white-text, #ffffff);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+}
+
+.pagination-btn:hover:not(.disabled) {
+    background: var(--primary-red, #E01020);
+    border-color: var(--primary-red, #E01020);
+    color: #ffffff;
+    transform: translateY(-2px);
+}
+
+.pagination-btn.active {
+    background: var(--primary-red, #E01020);
+    border-color: var(--primary-red, #E01020);
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.pagination-btn.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.pagination-dots {
+    color: #666;
+    padding: 0 8px;
+    font-weight: 600;
+}
+
+/* Mobile Responsive Styling (Matches Product, Banners & Offers) */
+@media (max-width: 768px) {
+    .filter-card-container {
+        margin-bottom: 12px !important;
+    }
+    .filter-card-container .card-body-dark {
+        padding: 10px 12px !important;
+    }
+    .filter-card-container .row.g-2 {
+        --bs-gutter-x: 6px !important;
+        --bs-gutter-y: 6px !important;
+    }
+    .form-control-dark {
+        padding: 6px 8px !important;
+        font-size: 11px !important;
+        height: 34px !important;
+        border-radius: 6px !important;
+    }
+    select.form-control-dark {
+        background-position: right 6px center !important;
+        padding-right: 22px !important;
+    }
+    .btn-clear {
+        padding: 6px 8px !important;
+        font-size: 11px !important;
+        height: 34px !important;
+        border-radius: 6px !important;
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    #resultsInfo {
+        font-size: 10px !important;
+        white-space: nowrap;
+        text-align: right;
+    }
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .page-header .btn-red {
+        width: 100%;
+        justify-content: center;
+    }
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .table-dark-custom {
+        min-width: 700px;
+    }
+}
+</style>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+$(document).ready(function() {
+    let currentPage   = 1;
+    let searchQuery   = $('#searchInput').val() ? $('#searchInput').val().trim() : '';
+    let statusFilter  = $('#statusFilter').val() || '';
+    let sortFilter    = $('#sortFilter').val() || 'newest';
+    let searchTimeout = null;
+    let csrfToken     = '<?= $this->security->get_csrf_hash(); ?>';
+
+    updateResetButton();
+
+    // Auto Search on Keyup (Debounced)
+    $('#searchInput').on('keyup input', function() {
+        clearTimeout(searchTimeout);
+        const val = $(this).val().trim();
+        searchTimeout = setTimeout(function() {
+            searchQuery = val;
+            currentPage = 1;
+            loadCategories();
+            updateResetButton();
+        }, 300);
+    });
+
+    // Auto Filter on Select Changes
+    $('#statusFilter').on('change', function() {
+        statusFilter = $(this).val();
+        currentPage  = 1;
+        loadCategories();
+        updateResetButton();
+    });
+
+    $('#sortFilter').on('change', function() {
+        sortFilter  = $(this).val();
+        currentPage = 1;
+        loadCategories();
+        updateResetButton();
+    });
+
+    // Reset Filters
+    $('#resetFilters').on('click', function() {
+        $('#searchInput').val('');
+        $('#statusFilter').val('');
+        $('#sortFilter').val('newest');
+        searchQuery  = '';
+        statusFilter = '';
+        sortFilter   = 'newest';
+        currentPage  = 1;
+        updateResetButton();
+        loadCategories();
+    });
+
+    // Pagination Click
+    $(document).on('click', '.pagination-btn:not(.disabled)', function() {
+        const page = $(this).data('page');
+        if (page) {
+            currentPage = page;
+            loadCategories();
+            $('html, body').animate({
+                scrollTop: $('#categoriesTableContainer').offset().top - 100
+            }, 300);
         }
+    });
 
-        /* Make table rows behave like cards */
-        .table-dark-custom,
-        .table-dark-custom tbody,
-        .table-dark-custom tr,
-        .table-dark-custom td {
-            display: block;
-            width: 100%;
-        }
+    // AJAX Load Function
+    function loadCategories() {
+        showLoading();
 
-        .table-dark-custom tr {
-            margin-bottom: 20px;
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            background: var(--card-bg);
-            padding: 16px;
-            position: relative;
-        }
+        $.ajax({
+            url: '<?= site_url("category/get_categories") ?>',
+            type: 'POST',
+            data: {
+                page: currentPage,
+                search: searchQuery,
+                status: statusFilter,
+                sort: sortFilter,
+                csrf_test_name: csrfToken
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.csrf_hash) {
+                    csrfToken = response.csrf_hash;
+                }
+                if (response.status) {
+                    $('#categoriesTableBody').html(response.html);
+                    $('#paginationContainer').html(response.pagination);
 
-        .table-dark-custom td {
-            padding: 10px 0;
-            border-bottom: none;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
+                    if (response.total_records > 0) {
+                        const start = ((response.current_page - 1) * 10) + 1;
+                        const end   = Math.min(response.current_page * 10, response.total_records);
+                        let info    = `Showing ${start}-${end} of ${response.total_records} categories`;
 
-        /* Add labels before each cell value */
-        .table-dark-custom td:first-child {
-            padding-top: 0;
-        }
+                        let activeFilters = [];
+                        if (searchQuery)  activeFilters.push(`search: "${searchQuery}"`);
+                        if (statusFilter) activeFilters.push(`status: ${statusFilter == '1' ? 'Active' : 'Inactive'}`);
+                        if (activeFilters.length) info += ` (${activeFilters.join(', ')})`;
 
-        .table-dark-custom td:last-child {
-            padding-bottom: 0;
-            border-bottom: none;
-        }
+                        $('#resultsInfo').text(info);
+                    } else {
+                        $('#resultsInfo').text('No categories found');
+                    }
+                } else {
+                    showError('Failed to load categories');
+                }
+            },
+            error: function(xhr) {
+                console.error('AJAX Error:', xhr);
+                showError('Something went wrong loading categories.');
+            },
+            complete: function() {
+                hideLoading();
+            }
+        });
+    }
 
-        .table-dark-custom td:nth-of-type(1):before {
-            content: "#: ";
-            font-weight: 600;
-            color: var(--text-muted);
-            min-width: 70px;
-        }
-
-        .table-dark-custom td:nth-of-type(2):before {
-            content: "Image: ";
-            font-weight: 600;
-            color: var(--text-muted);
-            min-width: 70px;
-        }
-
-        .table-dark-custom td:nth-of-type(3):before {
-            content: "Name: ";
-            font-weight: 600;
-            color: var(--text-muted);
-            min-width: 70px;
-        }
-
-        .table-dark-custom td:nth-of-type(4):before {
-            content: "Status: ";
-            font-weight: 600;
-            color: var(--text-muted);
-            min-width: 70px;
-        }
-
-        .table-dark-custom td:nth-of-type(5):before {
-            content: "Created: ";
-            font-weight: 600;
-            color: var(--text-muted);
-            min-width: 70px;
-        }
-
-        .table-dark-custom td:nth-of-type(6):before {
-            content: "Actions: ";
-            font-weight: 600;
-            color: var(--text-muted);
-            min-width: 70px;
-        }
-
-        /* Fix image alignment */
-        .table-dark-custom td:nth-of-type(2) {
-            display: flex;
-            align-items: center;
-        }
-
-        /* Action buttons stay inline */
-        .table-dark-custom td:last-child {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .table-dark-custom td:last-child:before {
-            display: inline-block;
-        }
-
-        /* Adjust badge and button sizes for mobile */
-        .badge-active,
-        .badge-inactive {
-            font-size: 0.7rem;
-            padding: 4px 10px;
-        }
-
-        .action-btn {
-            width: 36px;
-            height: 36px;
-        }
-
-        /* Page header responsive */
-        .page-header {
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        .btn-red {
-            width: 100%;
-            justify-content: center;
-        }
-
-        /* Alert responsive */
-        .alert-custom {
-            font-size: 0.85rem;
-            padding: 12px;
+    function updateResetButton() {
+        if (searchQuery || statusFilter || (sortFilter && sortFilter !== 'newest')) {
+            $('#resetFilters').show();
+        } else {
+            $('#resetFilters').hide();
         }
     }
-</style>
+
+    function showLoading() {
+        $('#loadingSpinner').show();
+        $('#categoriesTableContainer').css('opacity', '0.5');
+    }
+
+    function hideLoading() {
+        $('#loadingSpinner').hide();
+        $('#categoriesTableContainer').css('opacity', '1');
+    }
+
+    function showError(msg) {
+        $('#categoriesTableBody').html(`
+            <tr>
+                <td colspan="6" style="text-align:center; padding:50px; color:#E01020;">
+                    <i class="fas fa-exclamation-triangle" style="font-size:42px; margin-bottom:14px; display:block;"></i>
+                    <p>${msg}</p>
+                </td>
+            </tr>
+        `);
+        $('#paginationContainer').html('');
+        $('#resultsInfo').text('Error loading data');
+    }
+});
+</script>

@@ -17,55 +17,53 @@ class Dashboard extends CI_Controller
         $user_id = $this->session->userdata('admin_id');
 
         // REVENUE STATS
-        $data['total_revenue'] = $this->db
-            ->select_sum('total_amount')
-            ->where('user_id', $user_id)
+        $total_rev = $this->db
+            ->select('SUM(total_amount) as total')
             ->where('payment_status', 'paid')
-            ->get('orders')->row()->total_amount ?? 0;
+            ->get('orders')->row();
+        $data['total_revenue'] = (float)($total_rev->total ?? 0);
 
-        $data['today_revenue'] = $this->db
-            ->select_sum('total_amount')
-            ->where('user_id', $user_id)
+        $today_rev = $this->db
+            ->select('SUM(total_amount) as total')
             ->where('payment_status', 'paid')
             ->where('DATE(created_at)', date('Y-m-d'))
-            ->get('orders')->row()->total_amount ?? 0;
+            ->get('orders')->row();
+        $data['today_revenue'] = (float)($today_rev->total ?? 0);
 
-        $data['month_revenue'] = $this->db
-            ->select_sum('total_amount')
-            ->where('user_id', $user_id)
+        $month_rev = $this->db
+            ->select('SUM(total_amount) as total')
             ->where('payment_status', 'paid')
             ->where('MONTH(created_at)', date('m'))
             ->where('YEAR(created_at)', date('Y'))
-            ->get('orders')->row()->total_amount ?? 0;
+            ->get('orders')->row();
+        $data['month_revenue'] = (float)($month_rev->total ?? 0);
 
         // ORDER STATS
-        $data['total_orders'] = $this->db->where('user_id', $user_id)->count_all_results('orders');
-        $data['pending_orders'] = $this->db->where(['user_id' => $user_id, 'status' => 'pending'])->count_all_results('orders');
-        $data['processing_orders'] = $this->db->where(['user_id' => $user_id, 'status' => 'processing'])->count_all_results('orders');
-        $data['completed_orders'] = $this->db->where(['user_id' => $user_id, 'status' => 'delivered'])->count_all_results('orders');
+        $data['total_orders'] = $this->db->count_all_results('orders');
+        $data['pending_orders'] = $this->db->where('status', 'pending')->count_all_results('orders');
+        $data['processing_orders'] = $this->db->where_in('status', ['processing', 'confirmed', 'shipped'])->count_all_results('orders');
+        $data['completed_orders'] = $this->db->where('status', 'delivered')->count_all_results('orders');
 
         // PRODUCT STATS
-        $data['total_products'] = $this->db->where('user_id', $user_id)->count_all_results('products');
-        $data['active_products'] = $this->db->where(['user_id' => $user_id, 'is_active' => 1])->count_all_results('products');
-        $data['low_stock_count'] = $this->db->where('user_id', $user_id)->where('stock <', 5)->count_all_results('products');
-        $data['out_of_stock'] = $this->db->where(['user_id' => $user_id, 'stock' => 0])->count_all_results('products');
+        $data['total_products'] = $this->db->count_all_results('products');
+        $data['active_products'] = $this->db->where('is_active', 1)->count_all_results('products');
+        $data['low_stock_count'] = $this->db->where('stock <', 100)->count_all_results('products');
+        $data['out_of_stock'] = $this->db->where('stock', 0)->count_all_results('products');
 
         // CUSTOMER STATS
-        $data['total_customers'] = $this->db->where('role', 'user')->count_all_results('users');
+        $data['total_customers'] = $this->db->where('role', 0)->count_all_results('users');
 
         // RECENT ORDERS
         $this->db->select('orders.*, users.name as customer_name, users.mobile');
         $this->db->from('orders');
         $this->db->join('users', 'users.id = orders.user_id', 'left');
-        $this->db->where('orders.user_id', $user_id);
         $this->db->order_by('orders.id', 'DESC');
         $this->db->limit(8);
         $data['recent_orders'] = $this->db->get()->result_array();
 
         // LOW STOCK PRODUCTS
         $this->db->select('id, name, stock, image');
-        $this->db->where('user_id', $user_id);
-        $this->db->where('stock <', 5);
+        $this->db->where('stock <', 100);
         $this->db->order_by('stock', 'ASC');
         $this->db->limit(5);
         $data['low_stock_products'] = $this->db->get('products')->result_array();
@@ -74,16 +72,15 @@ class Dashboard extends CI_Controller
         $revenue_chart = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = date('Y-m-d', strtotime("-$i days"));
-            $amount = $this->db
-                ->select_sum('total_amount')
-                ->where('user_id', $user_id)
+            $rev_row = $this->db
+                ->select('SUM(total_amount) as total')
                 ->where('payment_status', 'paid')
                 ->where('DATE(created_at)', $date)
-                ->get('orders')->row()->total_amount ?? 0;
+                ->get('orders')->row();
             
             $revenue_chart[] = [
                 'date' => date('M d', strtotime($date)),
-                'amount' => (float)$amount
+                'amount' => (float)($rev_row->total ?? 0)
             ];
         }
         $data['revenue_chart'] = json_encode($revenue_chart);

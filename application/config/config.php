@@ -464,8 +464,12 @@ $config['csrf_expire'] = 7200;
 $config['csrf_regenerate'] = TRUE;
 $config['csrf_exclude_uris'] = array(
     'api/.*',
+    'order/get_orders',
+    'home_banners/get_banners',
+    'offers/get_offers',
+    'category/get_categories',
     'order/assign_courier/.*',
-    'live_status_webhook',   // ADD THIS
+    'live_status_webhook',
 );
 /*
 |--------------------------------------------------------------------------

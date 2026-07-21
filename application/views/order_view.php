@@ -324,6 +324,7 @@
     let statusFilter    = '';
     let paymentFilter   = '';
     let searchTimeout   = null;
+    let csrfToken       = '<?= $this->security->get_csrf_hash(); ?>';
 
     // Initial load
     loadOrders();
@@ -393,10 +394,13 @@
                 search: searchQuery,
                 status: statusFilter,
                 payment_status: paymentFilter,
-                 csrf_test_name: "<?= $this->security->get_csrf_hash(); ?>"
+                csrf_test_name: csrfToken
             },
             dataType: 'json',
             success: function(response) {
+                if (response.csrf_hash) {
+                    csrfToken = response.csrf_hash;
+                }
                 if (response.status) {
                     $('#ordersTableBody').html(response.html);
                     $('#paginationContainer').html(response.pagination);
