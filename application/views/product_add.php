@@ -73,7 +73,21 @@
                                 value="<?= isset($_POST['price']) ? $_POST['price'] : '' ?>"
                                 required>
                         </div>
+<?php
+$gst_rates = [0, 3, 5, 12, 18, 28];
+?>
 
+<div class="col-md-4">
+    <label class="form-label">GST (%)</label>
+    <select name="gst_percent" class="form-select">
+        <option value="">Select GST</option>
+        <?php foreach($gst_rates as $gst): ?>
+            <option value="<?= $gst ?>" <?= (isset($_POST['gst_percent']) && $_POST['gst_percent']==$gst)?'selected':''; ?>>
+                <?= $gst ?>%
+            </option>
+        <?php endforeach; ?>
+    </select>
+</div>
                         <div class="col-md-4">
                             <label class="form-label">Stock <span style="color:var(--primary-red)">*</span></label>
                             <input type="number" name="stock" class="form-control" placeholder="0"
@@ -98,22 +112,21 @@
                 <div class="card-header-dark">
                     <h6><i class="fas fa-images me-2" style="color:var(--primary-red);"></i>Product Images</h6>
                 </div>
-                <div class="card-body-dark">
-                    <div class="mb-3">
-                        <label class="form-label">Upload Images</label>
-                        <input type="file"
-                            name="image"
-                            class="form-control"
-                            accept="image/*"
-                            onchange="previewImage(this)">
-                        <small style="color:#666;font-size:11px;">Select multiple images. First image = primary.</small>
-                    </div>
-                    <div style="margin-top:10px;">
-                        <img id="imagePreview"
-                            src=""
-                            style="display:none;width:100%;border-radius:8px;border:1px solid var(--border-color);">
-                    </div>
-                </div>
+               <div class="card-body-dark">
+   <div class="mb-3">
+    <label class="form-label">Upload Images</label>
+    <input type="file"
+        name="image[]"
+        id="productImages"
+        class="form-control"
+        accept="image/*"
+        multiple
+        onchange="handleFileSelect(this, 'productImages', 'imagePreviewContainer')">
+    <small style="color:#666;font-size:11px;">Select multiple images (one at a time or together). First image = primary.</small>
+</div>
+<div id="imagePreviewContainer" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+    <div id="imagePreviewContainer" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+</div>
             </div>
 
             <div class="card-dark mt-4">
@@ -131,18 +144,79 @@
 </form>
 
 <script>
-    function previewImage(input) {
-        const preview = document.getElementById('imagePreview');
+    // Store selected files per input id, so multiple pickers on the page don't clash
+    const fileStore = {};
 
-        if (input.files && input.files[0]) {
+    function handleFileSelect(input, storeKey, containerId) {
+        if (!fileStore[storeKey]) {
+            fileStore[storeKey] = [];
+        }
+
+        // Append newly picked files to existing array
+        const newFiles = Array.from(input.files);
+        fileStore[storeKey] = fileStore[storeKey].concat(newFiles);
+
+        syncInputFiles(input, storeKey);
+        renderPreviews(storeKey, containerId, input);
+    }
+
+    function removeFile(storeKey, index, input, containerId) {
+        fileStore[storeKey].splice(index, 1);
+        syncInputFiles(input, storeKey);
+        renderPreviews(storeKey, containerId, input);
+    }
+
+    // Rebuild the <input type="file"> FileList from our stored array
+    function syncInputFiles(input, storeKey) {
+        const dataTransfer = new DataTransfer();
+        fileStore[storeKey].forEach(file => dataTransfer.items.add(file));
+        input.files = dataTransfer.files;
+    }
+
+    function renderPreviews(storeKey, containerId, input) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+
+        fileStore[storeKey].forEach((file, index) => {
             const reader = new FileReader();
 
             reader.onload = function(e) {
-                preview.src = e.target.result;
-                preview.style.display = 'block';
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'relative';
+                wrapper.style.width = '80px';
+
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.style.width = '80px';
+                img.style.height = '80px';
+                img.style.objectFit = 'cover';
+                img.style.borderRadius = '8px';
+                img.style.border = index === 0
+                    ? '2px solid var(--primary-red)'
+                    : '1px solid var(--border-color)';
+
+                wrapper.appendChild(img);
+
+                if (index === 0) {
+                    const badge = document.createElement('span');
+                    badge.textContent = 'Primary';
+                    badge.style.cssText = 'position:absolute;bottom:20px;left:2px;background:var(--primary-red);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;';
+                    wrapper.appendChild(badge);
+                }
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = '✕';
+                removeBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#dc3545;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;line-height:1;cursor:pointer;';
+                removeBtn.onclick = function() {
+                    removeFile(storeKey, index, input, containerId);
+                };
+                wrapper.appendChild(removeBtn);
+
+                container.appendChild(wrapper);
             };
 
-            reader.readAsDataURL(input.files[0]);
-        }
+            reader.readAsDataURL(file);
+        });
     }
 </script>

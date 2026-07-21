@@ -8,106 +8,99 @@ class Dashboard extends CI_Controller
         $this->load->file(APPPATH . 'controllers/Login.php');
         Login::check_login();
         $this->load->model('General_model');
-        $this->load->library(array('session', 'form_validation', 'upload'));
-        $this->load->helper(array('url', 'form'));
+        $this->load->library(['session']);
+        $this->load->helper(['url']);
     }
 
     public function index()
     {
         $user_id = $this->session->userdata('admin_id');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Dashboard Counts
-        |--------------------------------------------------------------------------
-        */
-        $data['total_categories'] = $this->General_model->getCount(
-            'categories',
-            array(
-                'user_id' => $user_id
-            )
-        );
+        // REVENUE STATS
+        $data['total_revenue'] = $this->db
+            ->select_sum('total_amount')
+            ->where('user_id', $user_id)
+            ->where('payment_status', 'paid')
+            ->get('orders')->row()->total_amount ?? 0;
 
-        $data['total_products'] = $this->General_model->getCount(
-            'products',
-            array(
-                'user_id' => $user_id
-            )
-        );
+        $data['today_revenue'] = $this->db
+            ->select_sum('total_amount')
+            ->where('user_id', $user_id)
+            ->where('payment_status', 'paid')
+            ->where('DATE(created_at)', date('Y-m-d'))
+            ->get('orders')->row()->total_amount ?? 0;
 
-        $data['active_products'] = $this->General_model->getCount(
-            'products',
-            array(
-                'user_id'   => $user_id,
-                'is_active' => 1
-            )
-        );
+        $data['month_revenue'] = $this->db
+            ->select_sum('total_amount')
+            ->where('user_id', $user_id)
+            ->where('payment_status', 'paid')
+            ->where('MONTH(created_at)', date('m'))
+            ->where('YEAR(created_at)', date('Y'))
+            ->get('orders')->row()->total_amount ?? 0;
 
-        $data['inactive_products'] = $this->General_model->getCount(
-            'products',
-            array(
-                'user_id'   => $user_id,
-                'is_active' => 0
-            )
-        );
+        // ORDER STATS
+        $data['total_orders'] = $this->db->where('user_id', $user_id)->count_all_results('orders');
+        $data['pending_orders'] = $this->db->where(['user_id' => $user_id, 'status' => 'pending'])->count_all_results('orders');
+        $data['processing_orders'] = $this->db->where(['user_id' => $user_id, 'status' => 'processing'])->count_all_results('orders');
+        $data['completed_orders'] = $this->db->where(['user_id' => $user_id, 'status' => 'delivered'])->count_all_results('orders');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Recent Products
-        |--------------------------------------------------------------------------
-        */
-        $this->db->select('
-            p.id,
-            p.name,
-            p.image,
-            p.mrp,
-            p.price,
-            p.stock,
-            p.is_active,
-            c.name as category_name
-        ');
+        // PRODUCT STATS
+        $data['total_products'] = $this->db->where('user_id', $user_id)->count_all_results('products');
+        $data['active_products'] = $this->db->where(['user_id' => $user_id, 'is_active' => 1])->count_all_results('products');
+        $data['low_stock_count'] = $this->db->where('user_id', $user_id)->where('stock <', 5)->count_all_results('products');
+        $data['out_of_stock'] = $this->db->where(['user_id' => $user_id, 'stock' => 0])->count_all_results('products');
 
-        $this->db->from('products p');
+        // CUSTOMER STATS
+        $data['total_customers'] = $this->db->where('role', 'user')->count_all_results('users');
 
-        $this->db->join(
-            'categories c',
-            'c.id = p.category_id',
-            'left'
-        );
+        // RECENT ORDERS
+        $this->db->select('orders.*, users.name as customer_name, users.mobile');
+        $this->db->from('orders');
+        $this->db->join('users', 'users.id = orders.user_id', 'left');
+        $this->db->where('orders.user_id', $user_id);
+        $this->db->order_by('orders.id', 'DESC');
+        $this->db->limit(8);
+        $data['recent_orders'] = $this->db->get()->result_array();
 
-        $this->db->where(
-            'p.user_id',
-            $user_id
-        );
-
-        $this->db->order_by(
-            'p.id',
-            'DESC'
-        );
-
+        // LOW STOCK PRODUCTS
+        $this->db->select('id, name, stock, image');
+        $this->db->where('user_id', $user_id);
+        $this->db->where('stock <', 5);
+        $this->db->order_by('stock', 'ASC');
         $this->db->limit(5);
+        $data['low_stock_products'] = $this->db->get('products')->result_array();
 
-        $data['recent_products'] = $this->db
-            ->get()
-            ->result_array();
+        // REVENUE CHART DATA (Last 7 Days)
+        $revenue_chart = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = date('Y-m-d', strtotime("-$i days"));
+            $amount = $this->db
+                ->select_sum('total_amount')
+                ->where('user_id', $user_id)
+                ->where('payment_status', 'paid')
+                ->where('DATE(created_at)', $date)
+                ->get('orders')->row()->total_amount ?? 0;
+            
+            $revenue_chart[] = [
+                'date' => date('M d', strtotime($date)),
+                'amount' => (float)$amount
+            ];
+        }
+        $data['revenue_chart'] = json_encode($revenue_chart);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Page Title
-        |--------------------------------------------------------------------------
-        */
+        // ORDER STATUS CHART
+        $data['order_status_chart'] = json_encode([
+            'pending' => $data['pending_orders'],
+            'processing' => $data['processing_orders'],
+            'completed' => $data['completed_orders']
+        ]);
+
         $data['page_title'] = 'Dashboard';
 
-        /*
-        |--------------------------------------------------------------------------
-        | Load View
-        |--------------------------------------------------------------------------
-        */
         $this->load->view('includes/header', $data);
         $this->load->view('dashboard_view', $data);
         $this->load->view('includes/footer', $data);
     }
-
     /*
     |--------------------------------------------------------------------------
     | Edit/View User Profile

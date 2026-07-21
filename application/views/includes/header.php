@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= $this->security->get_csrf_hash() ?>">
     <title><?= isset($page_title) ? $page_title . ' - ' : '' ?><?= $this->session->userdata('shop_name') ?: 'Admin Panel' ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -524,38 +525,76 @@
 
     <!-- SIDEBAR -->
     <nav class="sidebar" id="sidebar">
-        <div class="sidebar-logo">
-            <a href="<?= base_url('dashboard') ?>" class="sidebar-logo-content">
-                <i class="fas fa-gopuram sidebar-logo-icon"></i>
-                <div class="sidebar-logo-text">
-                    <h5><?= $this->session->userdata('shop_name') ?: 'Admin Panel' ?></h5>
-                    <p>Management System</p>
-                </div>
-            </a>
-        </div>
+      <div class="sidebar-logo">
+    <a href="<?= base_url('dashboard') ?>" class="sidebar-logo-content">
+        <img src="<?php echo base_url('uploads/ghanshyam-murti-logo-dark-bg.png'); ?>" alt="Ghanshyam Murti Bhandar" class="sidebar-logo-img">
+    </a>
+</div>
+<style>
+    .sidebar-logo {
+    text-align: center;
+    padding: 15px 10px;
+}
 
-        <div class="sidebar-menu">
-            <div class="sidebar-section-title">Main</div>
-            <a href="<?= base_url('dashboard') ?>" class="sidebar-menu-item <?= ($this->uri->segment(1) == 'dashboard' || $this->uri->segment(1) == '') ? 'active' : '' ?>">
-                <i class="fas fa-chart-pie"></i> Dashboard
-            </a>
+.sidebar-logo-img {
+    max-width: 230px;
+    width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+</style>
 
-            <div class="sidebar-section-title">Catalogue</div>
-            <a href="<?= base_url('category') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'category' ? 'active' : '' ?>">
-                <i class="fas fa-list"></i> Categories
-            </a>
-            <a href="<?= base_url('product') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'product' ? 'active' : '' ?>">
-                <i class="fas fa-boxes"></i> Products
-            </a>
-            <a href="<?= base_url('product/add') ?>" class="sidebar-menu-item <?= ($this->uri->segment(1) == 'product' && $this->uri->segment(2) == 'add') ? 'active' : '' ?>">
-                <i class="fas fa-plus-circle"></i> Add Product
-            </a>
+     <div class="sidebar-menu">
 
-            <div class="sidebar-section-title">Account</div>
-            <a href="<?= base_url('logout') ?>" class="sidebar-menu-item">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </a>
-        </div>
+    <!-- Main -->
+    <div class="sidebar-section-title">Main</div>
+
+    <a href="<?= base_url('dashboard') ?>" class="sidebar-menu-item <?= ($this->uri->segment(1) == 'dashboard' || $this->uri->segment(1) == '') ? 'active' : '' ?>">
+        <i class="fas fa-chart-pie"></i> Dashboard
+    </a>
+
+    <!-- Catalogue -->
+    <div class="sidebar-section-title">Catalogue</div>
+
+    <a href="<?= base_url('category') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'category' ? 'active' : '' ?>">
+        <i class="fas fa-list"></i> Categories
+    </a>
+
+    <a href="<?= base_url('product') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'product' ? 'active' : '' ?>">
+        <i class="fas fa-boxes"></i> Products
+    </a>
+
+    <a href="<?= base_url('product/add') ?>" class="sidebar-menu-item <?= ($this->uri->segment(1) == 'product' && $this->uri->segment(2) == 'add') ? 'active' : '' ?>">
+        <i class="fas fa-plus-circle"></i> Add Product
+    </a>
+
+    <!-- Orders -->
+    <div class="sidebar-section-title">Sales</div>
+
+    <a href="<?= base_url('order') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'order' ? 'active' : '' ?>">
+        <i class="fas fa-shopping-bag"></i> Orders
+    </a>
+
+    <!-- Marketing -->
+    <div class="sidebar-section-title">Marketing</div>
+
+    <a href="<?= base_url('home_banners') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'home_banner' ? 'active' : '' ?>">
+        <i class="fas fa-images"></i> Home Banners
+    </a>
+
+    <a href="<?= base_url('offers') ?>" class="sidebar-menu-item <?= $this->uri->segment(1) == 'offer' ? 'active' : '' ?>">
+        <i class="fas fa-tags"></i> Offers
+    </a>
+
+    <!-- Account -->
+    <div class="sidebar-section-title">Account</div>
+
+    <a href="<?= base_url('logout') ?>" class="sidebar-menu-item">
+        <i class="fas fa-sign-out-alt"></i> Logout
+    </a>
+
+</div>
     </nav>
 
     <!-- NAVBAR -->

@@ -245,11 +245,24 @@
 <body>
     <div class="login-wrapper">
         <div class="login-card">
-            <div class="login-logo">
-                <i class="fas fa-gopuram login-logo-icon"></i>
-                <h1>Welcome Back</h1>
-                <p>Sign in to your admin panel</p>
-            </div>
+           <div class="login-logo">
+    <img src="<?php echo base_url('uploads/ghanshyam-murti-logo-dark-bg.png'); ?>" alt="Ghanshyam Murti Bhandar" class="login-logo-img">
+    <!-- <h1>Welcome Back</h1> -->
+    <p>Sign in to your admin panel</p>
+</div>
+<style>
+    .login-logo {
+    text-align: center;
+}
+
+.login-logo-img {
+    max-width: 260px;
+    width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto 15px;
+}
+</style>
 
             <?php if ($this->session->flashdata('success')): ?>
                 <div class="alert alert-success">

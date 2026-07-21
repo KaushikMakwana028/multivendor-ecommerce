@@ -148,3 +148,9 @@ $route['api/verify_order_payment']           = 'api/verify_order_payment';
 $route['api/get_orders']                     = 'api/get_orders';
 $route['api/get_order_details/(:num)']       = 'api/get_order_details/$1';
 $route['api/cancel_order']                   = 'api/cancel_order';
+$route['api/check_delivery_charge']          = 'api/check_delivery_charge';
+$route['api/track_order']          = 'api/track_order';
+$route['live_status_webhook']          = 'api/shiprocket_webhook';
+
+
+
