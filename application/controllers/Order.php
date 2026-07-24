@@ -44,7 +44,7 @@ class Order extends CI_Controller
         $status         = trim($this->input->get_post('status', true) ?? '');
         $payment_status = trim($this->input->get_post('payment_status', true) ?? '');
         $page           = (int)($this->input->get_post('page', true) ?: 1);
-        $limit          = 20;
+        $limit          = 10;
         $offset         = ($page - 1) * $limit;
 
         // Build query

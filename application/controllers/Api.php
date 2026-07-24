@@ -26,7 +26,7 @@ class Api extends CI_Controller
         $this->load->library(['form_validation']);
         $this->load->helper(['url', 'form']);
         $this->config->load('razorpay');
-           $this->config->load('shiprocket'); 
+        $this->config->load('shiprocket');
 
         header('Access-Control-Allow-Origin: *');
         header('Access-Control-Allow-Headers: Authorization, Content-Type');
@@ -97,17 +97,17 @@ class Api extends CI_Controller
         return !empty($filename) ? base_url('uploads/categories/' . $filename) : '';
     }
 
- private function get_product_image_url(?string $filename): string
-{
-    if (empty($filename)) {
-        return '';
+    private function get_product_image_url(?string $filename): string
+    {
+        if (empty($filename)) {
+            return '';
+        }
+
+        // Extract only filename (removes any path if present)
+        $filename = basename($filename);
+
+        return base_url('uploads/products/' . $filename);
     }
-
-    // Extract only filename (removes any path if present)
-    $filename = basename($filename);
-
-    return base_url('uploads/products/' . $filename);
-}
 
     private function get_user_image_url(?string $filename): string
     {
@@ -301,141 +301,141 @@ class Api extends CI_Controller
     //         ],
     //     ], 201);
     // }
-/*-----------------------------------------------------------------------
+    /*-----------------------------------------------------------------------
 | SEND REGISTRATION OTP
 | POST /api/register_send_otp
 | Body: { "name", "email", "mobile" }
 |-----------------------------------------------------------------------*/
-public function register_user(): void
-{
-    $this->require_method('POST');
+    public function register_user(): void
+    {
+        $this->require_method('POST');
 
-    $name   = $this->input_value('name');
-    $email  = $this->input_value('email');
-    $mobile = $this->input_value('mobile');
+        $name   = $this->input_value('name');
+        $email  = $this->input_value('email');
+        $mobile = $this->input_value('mobile');
 
-    // Validate
-    if (empty($name) || empty($email) || empty($mobile)) {
-        $this->send_response(false, 'Name, email and mobile are all required.', null, 400);
+        // Validate
+        if (empty($name) || empty($email) || empty($mobile)) {
+            $this->send_response(false, 'Name, email and mobile are all required.', null, 400);
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->send_response(false, 'Please enter a valid email address.', null, 400);
+        }
+
+        if (!is_numeric($mobile) || strlen($mobile) !== 10) {
+            $this->send_response(false, 'Mobile number must be exactly 10 digits.', null, 400);
+        }
+
+        // Check duplicates
+        if ($this->db->get_where('users', ['email' => $email])->row()) {
+            $this->send_response(false, 'This email address is already registered.', null, 400);
+        }
+
+        if ($this->db->get_where('users', ['mobile' => $mobile])->row()) {
+            $this->send_response(false, 'This mobile number is already registered.', null, 400);
+        }
+
+        // Generate OTP
+        $otp = OTP_FIXED_MODE ? '123456' : (string) rand(100000, 999999);
+
+        // Clear old registration OTPs for this mobile
+        $this->db->where('mobile', $mobile)->delete('user_registration_otps');
+
+        // Store OTP with user data
+        $this->db->insert('user_registration_otps', [
+            'mobile'     => $mobile,
+            'otp'        => $otp,
+            'user_data'  => json_encode(compact('name', 'email', 'mobile')),
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+5 minutes')),
+        ]);
+
+        // Send SMS (disabled for testing)
+        // $this->send_otp_via_sms($mobile, $otp);
+
+        $this->send_response(true, 'OTP sent successfully to your mobile number.', [
+            'masked_mobile' => '*******' . substr($mobile, -4),
+            'expires_in'    => '5 minutes',
+        ]);
     }
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $this->send_response(false, 'Please enter a valid email address.', null, 400);
-    }
-
-    if (!is_numeric($mobile) || strlen($mobile) !== 10) {
-        $this->send_response(false, 'Mobile number must be exactly 10 digits.', null, 400);
-    }
-
-    // Check duplicates
-    if ($this->db->get_where('users', ['email' => $email])->row()) {
-        $this->send_response(false, 'This email address is already registered.', null, 400);
-    }
-
-    if ($this->db->get_where('users', ['mobile' => $mobile])->row()) {
-        $this->send_response(false, 'This mobile number is already registered.', null, 400);
-    }
-
-    // Generate OTP
-    $otp = OTP_FIXED_MODE ? '123456' : (string) rand(100000, 999999);
-
-    // Clear old registration OTPs for this mobile
-    $this->db->where('mobile', $mobile)->delete('user_registration_otps');
-
-    // Store OTP with user data
-    $this->db->insert('user_registration_otps', [
-        'mobile'     => $mobile,
-        'otp'        => $otp,
-        'user_data'  => json_encode(compact('name', 'email', 'mobile')),
-        'expires_at' => date('Y-m-d H:i:s', strtotime('+5 minutes')),
-    ]);
-
-    // Send SMS (disabled for testing)
-    // $this->send_otp_via_sms($mobile, $otp);
-
-    $this->send_response(true, 'OTP sent successfully to your mobile number.', [
-        'masked_mobile' => '*******' . substr($mobile, -4),
-        'expires_in'    => '5 minutes',
-    ]);
-}
-
-/*-----------------------------------------------------------------------
+    /*-----------------------------------------------------------------------
 | VERIFY REGISTRATION OTP
 | POST /api/register_verify_otp
 | Body: { "mobile", "otp" }
 |-----------------------------------------------------------------------*/
-public function register_verify_otp(): void
-{
-    $this->require_method('POST');
+    public function register_verify_otp(): void
+    {
+        $this->require_method('POST');
 
-    $mobile      = $this->input_value('mobile');
-    $entered_otp = $this->input_value('otp');
+        $mobile      = $this->input_value('mobile');
+        $entered_otp = $this->input_value('otp');
 
-    // Validate
-    if (empty($mobile) || empty($entered_otp)) {
-        $this->send_response(false, 'Both mobile number and OTP are required.', null, 400);
+        // Validate
+        if (empty($mobile) || empty($entered_otp)) {
+            $this->send_response(false, 'Both mobile number and OTP are required.', null, 400);
+        }
+
+        // Sanitise mobile
+        $mobile = preg_replace('/[^0-9]/', '', $mobile);
+        $mobile = substr($mobile, -10);
+
+        // Find OTP
+        $otp_row = $this->db
+            ->where('mobile', $mobile)
+            ->where('otp', $entered_otp)
+            ->where('expires_at >=', date('Y-m-d H:i:s'))
+            ->order_by('id', 'DESC')
+            ->get('user_registration_otps')
+            ->row();
+
+        if (!$otp_row) {
+            $this->send_response(false, 'OTP is incorrect or has expired. Please request a new OTP.', null, 400);
+        }
+
+        // Decode user data
+        $user_data = json_decode($otp_row->user_data, true);
+
+        // Create user
+        $this->db->insert('users', [
+            'name'       => $user_data['name'],
+            'email'      => $user_data['email'],
+            'mobile'     => $user_data['mobile'],
+            'password'   => '',
+            'shop_name'  => '',
+            'role'       => 0,
+            'is_active'  => 1,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $new_user_id = $this->db->insert_id();
+
+        if (!$new_user_id) {
+            $this->send_response(false, 'Registration failed. Please try again.', null, 500);
+        }
+
+        // Cleanup used OTP
+        $this->db->where('id', $otp_row->id)->delete('user_registration_otps');
+
+        // Get full user object for token
+        $user = $this->db->get_where('users', ['id' => $new_user_id])->row();
+
+        // Generate JWT
+        $token = $this->generate_token($user);
+
+        $this->send_response(true, 'Registration successful. You are now logged in.', [
+            'token' => $token,
+            'user'  => [
+                'id'        => (int) $new_user_id,
+                'name'      => $user_data['name'],
+                'email'     => $user_data['email'],
+                'mobile'    => $user_data['mobile'],
+
+                'image'     => $this->get_user_image_url(''),
+            ],
+        ], 201);
     }
-
-    // Sanitise mobile
-    $mobile = preg_replace('/[^0-9]/', '', $mobile);
-    $mobile = substr($mobile, -10);
-
-    // Find OTP
-    $otp_row = $this->db
-        ->where('mobile', $mobile)
-        ->where('otp', $entered_otp)
-        ->where('expires_at >=', date('Y-m-d H:i:s'))
-        ->order_by('id', 'DESC')
-        ->get('user_registration_otps')
-        ->row();
-
-    if (!$otp_row) {
-        $this->send_response(false, 'OTP is incorrect or has expired. Please request a new OTP.', null, 400);
-    }
-
-    // Decode user data
-    $user_data = json_decode($otp_row->user_data, true);
-
-    // Create user
-    $this->db->insert('users', [
-        'name'       => $user_data['name'],
-        'email'      => $user_data['email'],
-        'mobile'     => $user_data['mobile'],
-        'password'   => '',
-        'shop_name'  => '',
-        'role'       => 0,
-        'is_active'  => 1,
-        'created_at' => date('Y-m-d H:i:s'),
-        'updated_at' => date('Y-m-d H:i:s'),
-    ]);
-
-    $new_user_id = $this->db->insert_id();
-
-    if (!$new_user_id) {
-        $this->send_response(false, 'Registration failed. Please try again.', null, 500);
-    }
-
-    // Cleanup used OTP
-    $this->db->where('id', $otp_row->id)->delete('user_registration_otps');
-
-    // Get full user object for token
-    $user = $this->db->get_where('users', ['id' => $new_user_id])->row();
-
-    // Generate JWT
-    $token = $this->generate_token($user);
-
-    $this->send_response(true, 'Registration successful. You are now logged in.', [
-        'token' => $token,
-        'user'  => [
-            'id'        => (int) $new_user_id,
-            'name'      => $user_data['name'],
-            'email'     => $user_data['email'],
-            'mobile'    => $user_data['mobile'],
-            
-            'image'     => $this->get_user_image_url(''),
-        ],
-    ], 201);
-}
     /*-----------------------------------------------------------------------
     | SEND OTP
     | POST /api/send_otp
@@ -560,7 +560,7 @@ public function register_verify_otp(): void
 
     public function get_home_data(): void
     {
-         $user_id = $this->require_token_user_id();
+        $user_id = $this->require_token_user_id();
         // Get featured banners
         $banners = $this->db
             ->where('is_active', 1)
@@ -572,7 +572,7 @@ public function register_verify_otp(): void
             ->get('home_banners')
             ->result_array();
 
-        $banners = array_map(function($b) {
+        $banners = array_map(function ($b) {
             return [
                 'id' => $b['id'],
                 'title' => $b['title'],
@@ -601,7 +601,7 @@ public function register_verify_otp(): void
                 ->get('products')
                 ->result_array();
 
-            $products = array_map(function($p) {
+            $products = array_map(function ($p) {
                 return [
                     'id' => $p['id'],
                     'name' => $p['name'],
@@ -630,7 +630,7 @@ public function register_verify_otp(): void
             ->get('offers')
             ->result_array();
 
-        $offers = array_map(function($o) {
+        $offers = array_map(function ($o) {
             return [
                 'id' => $o['id'],
                 'title' => $o['title'],
@@ -654,7 +654,7 @@ public function register_verify_otp(): void
             ->get()
             ->result_array();
 
-        $best_sellers = array_map(function($p) {
+        $best_sellers = array_map(function ($p) {
             return [
                 'id' => $p['id'],
                 'name' => $p['name'],
@@ -707,115 +707,115 @@ public function register_verify_otp(): void
     | → Supports optional image upload via multipart/form-data
     |-----------------------------------------------------------------------*/
     public function update_my_profile(): void
-{
-    $this->require_method('POST');
-    $token_data = $this->validate_token();
-    $request = $this->request_data();
-    $update_data = [];
+    {
+        $this->require_method('POST');
+        $token_data = $this->validate_token();
+        $request = $this->request_data();
+        $update_data = [];
 
-    if (array_key_exists('name', $request)) {
-        $update_data['name'] = $this->input_value('name');
-    }
-
-    if (array_key_exists('email', $request)) {
-        $update_data['email'] = $this->input_value('email');
-    }
-
-    if (array_key_exists('mobile', $request)) {
-        $mobile = preg_replace('/[^0-9]/', '', $this->input_value('mobile'));
-        $update_data['mobile'] = substr($mobile, -10);
-    }
-
-    if (array_key_exists('shop_name', $request)) {
-        $update_data['shop_name'] = $this->input_value('shop_name');
-    }
-
-    if (array_key_exists('gst_number', $request)) {
-        $update_data['gst_number'] = $this->input_value('gst_number');
-    }
-
-    if (array_key_exists('address', $request)) {
-        $update_data['address'] = $this->input_value('address');
-    }
-
-    if (!empty($_FILES['image']['name'])) {
-        @mkdir('./uploads/users/', 0777, true);
-        $this->load->library('upload', [
-            'upload_path'   => './uploads/users/',
-            'allowed_types' => 'jpg|jpeg|png|webp',
-            'max_size'      => 2048,
-            'file_name'     => 'user_' . $token_data->id . '_' . time(),
-        ]);
-        if ($this->upload->do_upload('image')) {
-            $update_data['image'] = $this->upload->data('file_name');
+        if (array_key_exists('name', $request)) {
+            $update_data['name'] = $this->input_value('name');
         }
+
+        if (array_key_exists('email', $request)) {
+            $update_data['email'] = $this->input_value('email');
+        }
+
+        if (array_key_exists('mobile', $request)) {
+            $mobile = preg_replace('/[^0-9]/', '', $this->input_value('mobile'));
+            $update_data['mobile'] = substr($mobile, -10);
+        }
+
+        if (array_key_exists('shop_name', $request)) {
+            $update_data['shop_name'] = $this->input_value('shop_name');
+        }
+
+        if (array_key_exists('gst_number', $request)) {
+            $update_data['gst_number'] = $this->input_value('gst_number');
+        }
+
+        if (array_key_exists('address', $request)) {
+            $update_data['address'] = $this->input_value('address');
+        }
+
+        if (!empty($_FILES['image']['name'])) {
+            @mkdir('./uploads/users/', 0777, true);
+            $this->load->library('upload', [
+                'upload_path'   => './uploads/users/',
+                'allowed_types' => 'jpg|jpeg|png|webp',
+                'max_size'      => 2048,
+                'file_name'     => 'user_' . $token_data->id . '_' . time(),
+            ]);
+            if ($this->upload->do_upload('image')) {
+                $update_data['image'] = $this->upload->data('file_name');
+            }
+        }
+
+        if (empty($update_data)) {
+            $this->send_response(false, 'No profile data provided for update.', null, 400);
+        }
+
+        $update_data['updated_at'] = date('Y-m-d H:i:s');
+        $this->db->where('id', $token_data->id)->update('users', $update_data);
+
+        $u = $this->db->get_where('users', ['id' => $token_data->id])->row();
+
+        $this->send_response(true, 'Profile updated successfully.', [
+            'id'         => (int) $u->id,
+            'name'       => $u->name,
+            'email'      => $u->email,
+            'mobile'     => $u->mobile     ?? '',
+            'shop_name'  => $u->shop_name  ?? '',
+            'gst_number' => $u->gst_number ?? '',
+            'image'      => $this->get_user_image_url($u->image ?? ''),
+            'address'    => $u->address    ?? '',
+        ]);
+    }
+    public function get_my_profile(): void
+    {
+        $this->require_method('GET');
+
+        $token_data = $this->validate_token();
+
+        $user = $this->db->get_where('users', ['id' => $token_data->id])->row();
+
+        if (!$user) {
+            $this->send_response(false, 'User not found.', null, 404);
+        }
+
+        $this->send_response(true, 'Profile fetched successfully.', [
+            'id'         => (int) $user->id,
+            'name'       => $user->name       ?? '',
+            'email'      => $user->email      ?? '',
+            'mobile'     => $user->mobile     ?? '',
+            'shop_name'  => $user->shop_name  ?? '',
+            'gst_number' => $user->gst_number ?? '',
+            'image'      => !empty($user->image) ? base_url('uploads/users/' . $user->image) : '',
+            'address'    => $user->address    ?? '',
+        ]);
+    }
+    public function track_order()
+    {
+        $this->require_method('GET');
+        $user_id = $this->require_token_user_id();
+        $order_id = (int) $this->input->get('order_id');
+
+        $order = $this->db->get_where('orders', ['id' => $order_id, 'user_id' => $user_id])->row();
+        if (!$order) {
+            $this->send_response(false, 'Order not found.', null, 404);
+        }
+
+        // Return directly from DB — no need to call Shiprocket live every time
+        $this->send_response(true, 'Order tracking fetched', [
+            'order_number'     => $order->order_number,
+            'status'            => $order->status,
+            'awb_code'          => $order->awb_code,
+            'courier_name'      => $order->courier_name,
+            'tracking_status'   => $order->tracking_status,
+            'pickup_scheduled'  => (bool) $order->pickup_scheduled,
+        ]);
     }
 
-    if (empty($update_data)) {
-        $this->send_response(false, 'No profile data provided for update.', null, 400);
-    }
-
-    $update_data['updated_at'] = date('Y-m-d H:i:s');
-    $this->db->where('id', $token_data->id)->update('users', $update_data);
-
-    $u = $this->db->get_where('users', ['id' => $token_data->id])->row();
-
-    $this->send_response(true, 'Profile updated successfully.', [
-        'id'         => (int) $u->id,
-        'name'       => $u->name,
-        'email'      => $u->email,
-        'mobile'     => $u->mobile     ?? '',
-        'shop_name'  => $u->shop_name  ?? '',
-        'gst_number' => $u->gst_number ?? '',
-        'image'      => $this->get_user_image_url($u->image ?? ''),
-        'address'    => $u->address    ?? '',
-    ]);
-}
-public function get_my_profile(): void
-{
-    $this->require_method('GET');
-
-    $token_data = $this->validate_token();
-
-    $user = $this->db->get_where('users', ['id' => $token_data->id])->row();
-
-    if (!$user) {
-        $this->send_response(false, 'User not found.', null, 404);
-    }
-
-    $this->send_response(true, 'Profile fetched successfully.', [
-        'id'         => (int) $user->id,
-        'name'       => $user->name       ?? '',
-        'email'      => $user->email      ?? '',
-        'mobile'     => $user->mobile     ?? '',
-        'shop_name'  => $user->shop_name  ?? '',
-        'gst_number' => $user->gst_number ?? '',
-        'image'      => !empty($user->image) ? base_url('uploads/users/' . $user->image) : '',
-        'address'    => $user->address    ?? '',
-    ]);
-}
-public function track_order()
-{
-    $this->require_method('GET');
-    $user_id = $this->require_token_user_id();
-    $order_id = (int) $this->input->get('order_id');
-
-    $order = $this->db->get_where('orders', ['id' => $order_id, 'user_id' => $user_id])->row();
-    if (!$order) {
-        $this->send_response(false, 'Order not found.', null, 404);
-    }
-
-    // Return directly from DB — no need to call Shiprocket live every time
-    $this->send_response(true, 'Order tracking fetched', [
-        'order_number'     => $order->order_number,
-        'status'            => $order->status,
-        'awb_code'          => $order->awb_code,
-        'courier_name'      => $order->courier_name,
-        'tracking_status'   => $order->tracking_status,
-        'pickup_scheduled'  => (bool) $order->pickup_scheduled,
-    ]);
-}
-   
     public function delete_account(): void
     {
         $this->require_method('POST');
@@ -847,7 +847,7 @@ public function track_order()
         $this->send_response(true, 'Account deleted successfully.');
     }
 
-  
+
     public function get_category_list(): void
     {
         $this->validate_token();
@@ -877,7 +877,7 @@ public function track_order()
     |-----------------------------------------------------------------------*/
     public function get_category_detail(int $category_id = 0): void
     {
-        $this->validate_token(); 
+        $this->validate_token();
 
         if ($category_id <= 0) {
             $this->send_response(false, 'A valid category ID is required.', null, 400);
@@ -918,7 +918,7 @@ public function track_order()
     |-----------------------------------------------------------------------*/
     public function get_products_by_category(int $category_id = 0): void
     {
-        $this->validate_token(); 
+        $this->validate_token();
 
         if ($category_id <= 0) {
             $this->send_response(false, 'A valid category ID is required.', null, 400);
@@ -943,21 +943,60 @@ public function track_order()
         ])->count_all_results('products');
 
         $product_rows = $this->db
-            ->select('id, name, price, mrp, image, stock')
+            ->select('id, name, price, mrp, image, stock, hsn_code')
             ->where(['category_id' => $category_id, 'is_active' => 1])
             ->order_by('name', 'ASC')
             ->limit($items_per_page, $offset)
             ->get('products')
             ->result();
 
-        $product_list = array_map(function ($p) {
+        // Fetch gallery images
+        $product_ids = array_map(function ($p) {
+            return (int) $p->id;
+        }, $product_rows);
+
+        $gallery_by_product = [];
+
+        if (!empty($product_ids)) {
+            $gallery_rows = $this->db
+                ->select('id, product_id, image')
+                ->from('product_images')
+                ->where_in('product_id', $product_ids)
+                ->order_by('id', 'ASC')
+                ->get()
+                ->result();
+
+            foreach ($gallery_rows as $g) {
+                $gallery_by_product[$g->product_id][] = [
+                    'id'    => (int) $g->id,
+                    'image' => $this->get_product_image_url($g->image ?? ''),
+                ];
+            }
+        }
+
+        $product_list = array_map(function ($p) use ($gallery_by_product) {
+            $images = [];
+
+            if (!empty($p->image)) {
+                $images[] = [
+                    'id'    => null,
+                    'image' => $this->get_product_image_url($p->image ?? ''),
+                ];
+            }
+
+            if (!empty($gallery_by_product[$p->id])) {
+                $images = array_merge($images, $gallery_by_product[$p->id]);
+            }
+
             return [
                 'id'       => (int) $p->id,
                 'name'     => $p->name,
                 'price'    => (float) $p->price,
                 'mrp'      => (float) $p->mrp,
                 'image'    => $this->get_product_image_url($p->image ?? ''),
+                'images'   => $images,
                 'in_stock' => ((int) $p->stock > 0),
+                'hsn_code' => $p->hsn_code ?? '',
             ];
         }, $product_rows);
 
@@ -976,187 +1015,189 @@ public function track_order()
     | GET /api/get_product_list  [Auth required]
     | Query params: ?page=1 &category_id=2 &search=keyword
     |-----------------------------------------------------------------------*/
- public function get_product_list(): void
-{
-    $this->validate_token(); 
+    public function get_product_list(): void
+    {
+        $this->validate_token();
 
-    $current_page   = max(1, (int) ($this->input->get('page') ?? 1));
-    $items_per_page = 20;
-    $offset         = ($current_page - 1) * $items_per_page;
-    $filter_cat_id  = (int) ($this->input->get('category_id') ?? 0);
-    $search_keyword = trim($this->input->get('search') ?? '');
-    $sort_by        = trim($this->input->get('sort') ?? 'name'); // name, price_low_high, price_high_low
+        $current_page   = max(1, (int) ($this->input->get('page') ?? 1));
+        $items_per_page = 20;
+        $offset         = ($current_page - 1) * $items_per_page;
+        $filter_cat_id  = (int) ($this->input->get('category_id') ?? 0);
+        $search_keyword = trim($this->input->get('search') ?? '');
+        $sort_by        = trim($this->input->get('sort') ?? 'name'); // name, price_low_high, price_high_low
 
-    $this->db
-        ->select('p.id, p.name, p.price, p.mrp, p.image, p.stock,
+        $this->db
+            ->select('p.id, p.name, p.price, p.mrp, p.image, p.stock, p.hsn_code,
               c.id AS category_id, c.name AS category_name')
-        ->from('products p')
-        ->join('categories c', 'c.id = p.category_id', 'left')
-        ->where('p.is_active', 1);
+            ->from('products p')
+            ->join('categories c', 'c.id = p.category_id', 'left')
+            ->where('p.is_active', 1);
 
-    if ($filter_cat_id > 0) {
-        $this->db->where('p.category_id', $filter_cat_id);
-    }
+        if ($filter_cat_id > 0) {
+            $this->db->where('p.category_id', $filter_cat_id);
+        }
 
-    if (!empty($search_keyword)) {
-        $this->db->group_start()
-            ->like('p.name', $search_keyword)
-            ->or_like('c.name', $search_keyword)
-            ->group_end();
-    }
+        if (!empty($search_keyword)) {
+            $this->db->group_start()
+                ->like('p.name', $search_keyword)
+                ->or_like('c.name', $search_keyword)
+                ->group_end();
+        }
 
-    $total_products = $this->db->count_all_results('', false);
+        $total_products = $this->db->count_all_results('', false);
 
-    // Apply sorting
-    switch ($sort_by) {
-        case 'price_low_high':
-            $this->db->order_by('p.price', 'ASC');
-            break;
-        case 'price_high_low':
-            $this->db->order_by('p.price', 'DESC');
-            break;
-        default:
-            $this->db->order_by('p.name', 'ASC');
-    }
+        // Apply sorting
+        switch ($sort_by) {
+            case 'price_low_high':
+                $this->db->order_by('p.price', 'ASC');
+                break;
+            case 'price_high_low':
+                $this->db->order_by('p.price', 'DESC');
+                break;
+            default:
+                $this->db->order_by('p.name', 'ASC');
+        }
 
-    $this->db->limit($items_per_page, $offset);
-    $product_rows = $this->db->get()->result();
+        $this->db->limit($items_per_page, $offset);
+        $product_rows = $this->db->get()->result();
 
-    // Fetch gallery images
-    $product_ids = array_map(function ($p) {
-        return (int) $p->id;
-    }, $product_rows);
+        // Fetch gallery images
+        $product_ids = array_map(function ($p) {
+            return (int) $p->id;
+        }, $product_rows);
 
-    $gallery_by_product = [];
+        $gallery_by_product = [];
 
-    if (!empty($product_ids)) {
-        $gallery_rows = $this->db
-            ->select('id, product_id, image')
-            ->from('product_images')
-            ->where_in('product_id', $product_ids)
-            ->order_by('id', 'ASC')
-            ->get()
-            ->result();
+        if (!empty($product_ids)) {
+            $gallery_rows = $this->db
+                ->select('id, product_id, image')
+                ->from('product_images')
+                ->where_in('product_id', $product_ids)
+                ->order_by('id', 'ASC')
+                ->get()
+                ->result();
 
-        foreach ($gallery_rows as $g) {
-            $gallery_by_product[$g->product_id][] = [
-                'id'    => (int) $g->id,
-                'image' => $this->get_product_image_url($g->image ?? ''),
+            foreach ($gallery_rows as $g) {
+                $gallery_by_product[$g->product_id][] = [
+                    'id'    => (int) $g->id,
+                    'image' => $this->get_product_image_url($g->image ?? ''),
+                ];
+            }
+        }
+
+        $product_list = array_map(function ($p) use ($gallery_by_product) {
+            $images = [];
+
+            if (!empty($p->image)) {
+                $images[] = [
+                    'id'    => null,
+                    'image' => $this->get_product_image_url($p->image ?? ''),
+                ];
+            }
+
+            if (!empty($gallery_by_product[$p->id])) {
+                $images = array_merge($images, $gallery_by_product[$p->id]);
+            }
+
+            return [
+                'id'            => (int) $p->id,
+                'name'          => $p->name,
+                'price'         => (float) $p->price,
+                'mrp'           => (float) $p->mrp,
+                'image'         => $this->get_product_image_url($p->image ?? ''),
+                'images'        => $images,
+                'in_stock'      => ((int) $p->stock > 0),
+                'category_id'   => (int) $p->category_id,
+                'category_name' => $p->category_name ?? '',
+                'hsn_code'      => $p->hsn_code ?? '',
             ];
-        }
+        }, $product_rows);
+
+        $this->send_response(true, 'Product list fetched successfully.', [
+            'total_products' => $total_products,
+            'current_page'   => $current_page,
+            'items_per_page' => $items_per_page,
+            'total_pages'    => (int) ceil($total_products / $items_per_page),
+            'products'       => $product_list,
+        ]);
     }
-
-    $product_list = array_map(function ($p) use ($gallery_by_product) {
-        $images = [];
-
-        if (!empty($p->image)) {
-            $images[] = [
-                'id'    => null,
-                'image' => $this->get_product_image_url($p->image ?? ''),
-            ];
-        }
-
-        if (!empty($gallery_by_product[$p->id])) {
-            $images = array_merge($images, $gallery_by_product[$p->id]);
-        }
-
-        return [
-            'id'            => (int) $p->id,
-            'name'          => $p->name,
-            'price'         => (float) $p->price,
-            'mrp'           => (float) $p->mrp,
-            'image'         => $this->get_product_image_url($p->image ?? ''),
-            'images'        => $images,
-            'in_stock'      => ((int) $p->stock > 0),
-            'category_id'   => (int) $p->category_id,
-            'category_name' => $p->category_name ?? '',
-        ];
-    }, $product_rows);
-
-    $this->send_response(true, 'Product list fetched successfully.', [
-        'total_products' => $total_products,
-        'current_page'   => $current_page,
-        'items_per_page' => $items_per_page,
-        'total_pages'    => (int) ceil($total_products / $items_per_page),
-        'products'       => $product_list,
-    ]);
-}
 
     /*-----------------------------------------------------------------------
     | GET PRODUCT DETAIL
     | GET /api/get_product_detail/{id}  [Auth required]
     |-----------------------------------------------------------------------*/
-public function get_product_detail(int $product_id = 0): void
-{
-    $this->validate_token(); 
+    public function get_product_detail(int $product_id = 0): void
+    {
+        $this->validate_token();
 
-    if ($product_id <= 0) {
-        $this->send_response(false, 'A valid product ID is required.', null, 400);
+        if ($product_id <= 0) {
+            $this->send_response(false, 'A valid product ID is required.', null, 400);
+        }
+
+        $this->db
+            ->select('p.*, c.name AS category_name')
+            ->from('products p')
+            ->join('categories c', 'c.id = p.category_id', 'left')
+            ->where('p.id', $product_id)
+            ->where('p.is_active', 1);
+
+        $product = $this->db->get()->row();
+
+        if (!$product) {
+            $this->send_response(false, 'Product not found.', null, 404);
+        }
+
+        $discount_percentage = 0;
+        if ($product->mrp > 0 && $product->price < $product->mrp) {
+            $discount_percentage = round((($product->mrp - $product->price) / $product->mrp) * 100);
+        }
+
+        // Fetch gallery images for this product
+        $gallery_rows = $this->db
+            ->select('id, image')
+            ->from('product_images')
+            ->where('product_id', $product_id)
+            ->order_by('id', 'ASC')
+            ->get()
+            ->result();
+
+        $images = [];
+
+        // Primary image always first
+        if (!empty($product->image)) {
+            $images[] = [
+                'id'    => null,
+                'image' => $this->get_product_image_url($product->image ?? ''),
+            ];
+        }
+
+        // Append gallery images
+        foreach ($gallery_rows as $g) {
+            $images[] = [
+                'id'    => (int) $g->id,
+                'image' => $this->get_product_image_url($g->image ?? ''),
+            ];
+        }
+
+        $this->send_response(true, 'Product detail fetched successfully.', [
+            'id'                  => (int) $product->id,
+            'name'                => $product->name,
+            'description'         => $product->description ?? '',
+            'price'               => (float) $product->price,
+            'mrp'                 => (float) $product->mrp,
+            'discount_percentage' => $discount_percentage,
+            'image'               => $this->get_product_image_url($product->image ?? ''), // kept for backward compatibility
+            'images'              => $images, // NEW: full gallery (primary + additional)
+            'stock_quantity'      => (int) $product->stock,
+            'in_stock'            => ((int) $product->stock > 0),
+            'category_id'         => (int) $product->category_id,
+            'category_name'       => $product->category_name ?? '',
+            'is_active'           => (int) $product->is_active,
+            'hsn_code'            => $product->hsn_code ?? '',
+            'created_at'          => $product->created_at,
+            'updated_at'          => $product->updated_at,
+        ]);
     }
-
-    $this->db
-        ->select('p.*, c.name AS category_name')
-        ->from('products p')
-        ->join('categories c', 'c.id = p.category_id', 'left')
-        ->where('p.id', $product_id)
-        ->where('p.is_active', 1);
-
-    $product = $this->db->get()->row();
-
-    if (!$product) {
-        $this->send_response(false, 'Product not found.', null, 404);
-    }
-
-    $discount_percentage = 0;
-    if ($product->mrp > 0 && $product->price < $product->mrp) {
-        $discount_percentage = round((($product->mrp - $product->price) / $product->mrp) * 100);
-    }
-
-    // Fetch gallery images for this product
-    $gallery_rows = $this->db
-        ->select('id, image')
-        ->from('product_images')
-        ->where('product_id', $product_id)
-        ->order_by('id', 'ASC')
-        ->get()
-        ->result();
-
-    $images = [];
-
-    // Primary image always first
-    if (!empty($product->image)) {
-        $images[] = [
-            'id'    => null,
-            'image' => $this->get_product_image_url($product->image ?? ''),
-        ];
-    }
-
-    // Append gallery images
-    foreach ($gallery_rows as $g) {
-        $images[] = [
-            'id'    => (int) $g->id,
-            'image' => $this->get_product_image_url($g->image ?? ''),
-        ];
-    }
-
-    $this->send_response(true, 'Product detail fetched successfully.', [
-        'id'                  => (int) $product->id,
-        'name'                => $product->name,
-        'description'         => $product->description ?? '',
-        'price'               => (float) $product->price,
-        'mrp'                 => (float) $product->mrp,
-        'discount_percentage' => $discount_percentage,
-        'image'               => $this->get_product_image_url($product->image ?? ''), // kept for backward compatibility
-        'images'              => $images, // NEW: full gallery (primary + additional)
-        'stock_quantity'      => (int) $product->stock,
-        'in_stock'            => ((int) $product->stock > 0),
-        'category_id'         => (int) $product->category_id,
-        'category_name'       => $product->category_name ?? '',
-        'is_active'           => (int) $product->is_active,
-        'created_at'          => $product->created_at,
-        'updated_at'          => $product->updated_at,
-    ]);
-}
 
     /*=======================================================================
     | CART ENDPOINTS
@@ -1206,74 +1247,74 @@ public function get_product_detail(int $product_id = 0): void
         $this->send_response(false, 'cart_id or product_id is required.', null, 400);
     }
 
-   private function get_cart_summary(int $user_id): array
-{
-    $rows = $this->db
-       ->select('ci.id AS cart_id, ci.product_id, ci.quantity, ci.created_at, ci.updated_at,
+    private function get_cart_summary(int $user_id): array
+    {
+        $rows = $this->db
+            ->select('ci.id AS cart_id, ci.product_id, ci.quantity, ci.created_at, ci.updated_at,
     p.name, p.price, p.mrp, p.image, p.stock, p.is_active, p.gst_percent,
     c.id AS category_id, c.name AS category_name')
-        ->from('cart_items ci')
-        ->join('products p', 'p.id = ci.product_id', 'left')
-        ->join('categories c', 'c.id = p.category_id', 'left')
-        ->where('ci.user_id', $user_id)
-        ->order_by('ci.id', 'DESC')
-        ->get()
-        ->result();
+            ->from('cart_items ci')
+            ->join('products p', 'p.id = ci.product_id', 'left')
+            ->join('categories c', 'c.id = p.category_id', 'left')
+            ->where('ci.user_id', $user_id)
+            ->order_by('ci.id', 'DESC')
+            ->get()
+            ->result();
 
-    $items = [];
-    $total_items = 0;
-    $subtotal = 0.0;
-    $total_mrp = 0.0;
-    $total_gst = 0.0;
+        $items = [];
+        $total_items = 0;
+        $subtotal = 0.0;
+        $total_mrp = 0.0;
+        $total_gst = 0.0;
 
-    foreach ($rows as $row) {
-        $quantity = (int) $row->quantity;
-        $price = (float) ($row->price ?? 0);
-        $mrp = (float) ($row->mrp ?? 0);
-       $gst_percent = (float)($row->gst_percent ?? 0);
+        foreach ($rows as $row) {
+            $quantity = (int) $row->quantity;
+            $price = (float) ($row->price ?? 0);
+            $mrp = (float) ($row->mrp ?? 0);
+            $gst_percent = (float)($row->gst_percent ?? 0);
 
-$line_total  = $price * $quantity;          // before GST
-$gst_amount  = ($line_total * $gst_percent) / 100;
-        $line_mrp_total = $mrp * $quantity;
-        $available = ((int) ($row->is_active ?? 0) === 1) && ((int) ($row->stock ?? 0) > 0);
+            $line_total  = $price * $quantity;          // before GST
+            $gst_amount  = ($line_total * $gst_percent) / 100;
+            $line_mrp_total = $mrp * $quantity;
+            $available = ((int) ($row->is_active ?? 0) === 1) && ((int) ($row->stock ?? 0) > 0);
 
-        $total_items += $quantity;
-        $subtotal += $line_total;
-        // $total_gst += $line_gst;
-        $total_gst += $gst_amount;
-        $total_mrp += $line_mrp_total;
+            $total_items += $quantity;
+            $subtotal += $line_total;
+            // $total_gst += $line_gst;
+            $total_gst += $gst_amount;
+            $total_mrp += $line_mrp_total;
 
-        $items[] = [
-            'cart_id'        => (int) $row->cart_id,
-            'product_id'     => (int) $row->product_id,
-            'name'           => $row->name ?? '',
-            'image'          => $row->image ?? '',  // ✅ CHANGED - Filename only, no URL conversion
-            'category_id'    => (int) ($row->category_id ?? 0),
-            'category_name'  => $row->category_name ?? '',
-            'price'          => $price,
-           'gst_percent' => $gst_percent,
-'gst_amount'  => $gst_amount,
-            'mrp'            => $mrp,
-            'quantity'       => $quantity,
-            'stock_quantity' => (int) ($row->stock ?? 0),
-            'is_available'   => $available,
-            'line_total'     => $line_total,
-            'created_at'     => $row->created_at,
-            'updated_at'     => $row->updated_at,
+            $items[] = [
+                'cart_id'        => (int) $row->cart_id,
+                'product_id'     => (int) $row->product_id,
+                'name'           => $row->name ?? '',
+                'image'          => $row->image ?? '',  // ✅ CHANGED - Filename only, no URL conversion
+                'category_id'    => (int) ($row->category_id ?? 0),
+                'category_name'  => $row->category_name ?? '',
+                'price'          => $price,
+                'gst_percent' => $gst_percent,
+                'gst_amount'  => $gst_amount,
+                'mrp'            => $mrp,
+                'quantity'       => $quantity,
+                'stock_quantity' => (int) ($row->stock ?? 0),
+                'is_available'   => $available,
+                'line_total'     => $line_total,
+                'created_at'     => $row->created_at,
+                'updated_at'     => $row->updated_at,
+            ];
+        }
+
+        return [
+            'total_cart_items' => count($items),
+            'total_quantity'   => $total_items,
+            'subtotal'      => round($subtotal, 2),
+            'total_gst'     => round($total_gst, 2),
+            'grand_total'   => round($subtotal + $total_gst, 2),
+            'total_mrp'        => $total_mrp,
+            'discount'         => max(0, $total_mrp - $subtotal),
+            'items'            => $items,
         ];
     }
-
-    return [
-        'total_cart_items' => count($items),
-        'total_quantity'   => $total_items,
-    'subtotal'      => round($subtotal,2),
-'total_gst'     => round($total_gst,2),
-'grand_total'   => round($subtotal + $total_gst,2),
-        'total_mrp'        => $total_mrp,
-        'discount'         => max(0, $total_mrp - $subtotal),
-        'items'            => $items,
-    ];
-}
 
     /*-----------------------------------------------------------------------
     | ADD TO CART
@@ -1333,20 +1374,20 @@ $gst_amount  = ($line_total * $gst_percent) / 100;
     | GET CART
     | GET /api/get_cart  [Auth required]
     |-----------------------------------------------------------------------*/
-  public function get_cart(): void
-{
-    $user_id = $this->require_token_user_id();
-    $this->ensure_cart_table();
+    public function get_cart(): void
+    {
+        $user_id = $this->require_token_user_id();
+        $this->ensure_cart_table();
 
-    $cart = $this->get_cart_summary($user_id);
+        $cart = $this->get_cart_summary($user_id);
 
-    // ✅ Convert image filenames to full URLs
-    foreach ($cart['items'] as &$item) {
-        $item['image'] = $this->get_product_image_url($item['image']);
+        // ✅ Convert image filenames to full URLs
+        foreach ($cart['items'] as &$item) {
+            $item['image'] = $this->get_product_image_url($item['image']);
+        }
+
+        $this->send_response(true, 'Cart fetched successfully.', $cart);
     }
-
-    $this->send_response(true, 'Cart fetched successfully.', $cart);
-}
     /*-----------------------------------------------------------------------
     | UPDATE CART QUANTITY
     | POST /api/update_cart_quantity  [Auth required]
@@ -1651,24 +1692,24 @@ $gst_amount  = ($line_total * $gst_percent) / 100;
         }
     }
 
-   private function insert_order_items(int $order_id, array $items): void
-{
-    foreach ($items as $item) {
+    private function insert_order_items(int $order_id, array $items): void
+    {
+        foreach ($items as $item) {
 
-        $this->db->insert('order_items', [
-            'order_id'      => $order_id,
-            'product_id'    => $item['product_id'],
-            'product_name'  => $item['name'],
-            'product_image' => $item['image'],
-            'price'         => $item['price'],
-            'gst_percent'   => $item['gst_percent'],
-            'gst_amount'    => $item['gst_amount'],
-            'quantity'      => $item['quantity'],
-            'subtotal'      => $item['line_total'], // Price × Qty (before GST)
-            'created_at'    => date('Y-m-d H:i:s'),
-        ]);
+            $this->db->insert('order_items', [
+                'order_id'      => $order_id,
+                'product_id'    => $item['product_id'],
+                'product_name'  => $item['name'],
+                'product_image' => $item['image'],
+                'price'         => $item['price'],
+                'gst_percent'   => $item['gst_percent'],
+                'gst_amount'    => $item['gst_amount'],
+                'quantity'      => $item['quantity'],
+                'subtotal'      => $item['line_total'], // Price × Qty (before GST)
+                'created_at'    => date('Y-m-d H:i:s'),
+            ]);
+        }
     }
-}
 
     private function reduce_stock(array $items): void
     {
@@ -1736,20 +1777,20 @@ $gst_amount  = ($line_total * $gst_percent) / 100;
     }
 
     private function format_order_full(int $order_id, int $user_id)
-{
-    // Get order details
-    $order = $this->db->get_where('orders', [
-        'id'      => $order_id,
-        'user_id' => $user_id,
-    ])->row_array();
+    {
+        // Get order details
+        $order = $this->db->get_where('orders', [
+            'id'      => $order_id,
+            'user_id' => $user_id,
+        ])->row_array();
 
-    if (!$order) {
-        return null;
-    }
+        if (!$order) {
+            return null;
+        }
 
-    // Get order items
-    $items = $this->db
-->select('
+        // Get order items
+        $items = $this->db
+            ->select('
 id,
 product_id,
 product_name,
@@ -1759,67 +1800,67 @@ gst_percent,
 gst_amount,
 quantity,
 subtotal
-')        ->where('order_id', $order_id)
-        ->get('order_items')
-        ->result_array();
+')->where('order_id', $order_id)
+            ->get('order_items')
+            ->result_array();
 
-    // ✅ Convert image filenames to URLs for each item
-    foreach ($items as &$item) {
-        $item['product_image'] = $this->get_product_image_url($item['product_image']);
-        $item['id'] = (int) $item['id'];
-        $item['product_id'] = (int) $item['product_id'];
-      $item['price'] = (float) $item['price'];
-$item['gst_percent'] = (float) $item['gst_percent'];
-$item['gst_amount'] = (float) $item['gst_amount'];
-$item['quantity'] = (int) $item['quantity'];
-$item['subtotal'] = (float) $item['subtotal'];
-$item['total_amount'] = round($item['subtotal'] + $item['gst_amount'], 2);
+        // ✅ Convert image filenames to URLs for each item
+        foreach ($items as &$item) {
+            $item['product_image'] = $this->get_product_image_url($item['product_image']);
+            $item['id'] = (int) $item['id'];
+            $item['product_id'] = (int) $item['product_id'];
+            $item['price'] = (float) $item['price'];
+            $item['gst_percent'] = (float) $item['gst_percent'];
+            $item['gst_amount'] = (float) $item['gst_amount'];
+            $item['quantity'] = (int) $item['quantity'];
+            $item['subtotal'] = (float) $item['subtotal'];
+            $item['total_amount'] = round($item['subtotal'] + $item['gst_amount'], 2);
+        }
+
+        // Get delivery address
+        $delivery_address = $this->db->get_where('user_addresses', [
+            'id' => $order['address_id'],
+        ])->row_array();
+
+        // Get status history
+        $status_history = $this->db
+            ->where('order_id', $order_id)
+            ->order_by('created_at', 'DESC')
+            ->get('order_status_history')
+            ->result_array();
+
+        return [
+            'order_id'           => (int) $order['id'],
+            'order_number'       => $order['order_number'],
+            'status'             => $order['status'],
+            'payment_method'     => $order['payment_method'],
+            'payment_status'     => $order['payment_status'],
+            'subtotal'           => (float) $order['subtotal'],
+            'gst_amount'         => (float) $order['gst_amount'],
+            'delivery_charge'    => (float) $order['delivery_charge'],
+            'expected_delivery' => $order['expected_delivery_date'] ?? null,
+            'discount'           => (float) $order['discount'],
+            'total_amount'       => (float) $order['total_amount'],
+            'total_items'        => (int) $order['total_items'],
+            'notes'              => $order['notes'] ?? '',
+            'cancel_reason'      => $order['cancel_reason'] ?? null,
+            'cancelled_by'       => $order['cancelled_by'] ?? null,
+            'created_at'         => $order['created_at'],
+            'updated_at'         => $order['updated_at'],
+
+            // NEW — Shiprocket fields
+            'awb_code'           => $order['awb_code'] ?? null,
+            'courier_name'       => $order['courier_name'] ?? null,
+            'tracking_status'    => $order['tracking_status'] ?? null,
+            'pickup_scheduled'   => (bool) ($order['pickup_scheduled'] ?? false),
+            'invoice_url' => $order['invoice_url'] ?? null,
+            // 'label_url'   => $order['label_url'] ?? null,
+            'items'              => $items,
+            'delivery_address'   => $delivery_address,
+            'status_history'     => $status_history,
+        ];
     }
 
-    // Get delivery address
-    $delivery_address = $this->db->get_where('user_addresses', [
-        'id' => $order['address_id'],
-    ])->row_array();
-
-    // Get status history
-    $status_history = $this->db
-        ->where('order_id', $order_id)
-        ->order_by('created_at', 'DESC')
-        ->get('order_status_history')
-        ->result_array();
-
-   return [
-    'order_id'           => (int) $order['id'],
-    'order_number'       => $order['order_number'],
-    'status'             => $order['status'],
-    'payment_method'     => $order['payment_method'],
-    'payment_status'     => $order['payment_status'],
-    'subtotal'           => (float) $order['subtotal'],
-    'gst_amount'         => (float) $order['gst_amount'],
-    'delivery_charge'    => (float) $order['delivery_charge'],
-    'expected_delivery' => $order['expected_delivery_date'] ?? null,
-    'discount'           => (float) $order['discount'],
-    'total_amount'       => (float) $order['total_amount'],
-    'total_items'        => (int) $order['total_items'],
-    'notes'              => $order['notes'] ?? '',
-    'cancel_reason'      => $order['cancel_reason'] ?? null,
-    'cancelled_by'       => $order['cancelled_by'] ?? null,
-    'created_at'         => $order['created_at'],
-    'updated_at'         => $order['updated_at'],
-
-    // NEW — Shiprocket fields
-    'awb_code'           => $order['awb_code'] ?? null,
-    'courier_name'       => $order['courier_name'] ?? null,
-    'tracking_status'    => $order['tracking_status'] ?? null,
-    'pickup_scheduled'   => (bool) ($order['pickup_scheduled'] ?? false),
-'invoice_url' => $order['invoice_url'] ?? null,
-// 'label_url'   => $order['label_url'] ?? null,
-    'items'              => $items,
-    'delivery_address'   => $delivery_address,
-    'status_history'     => $status_history,
-];
-}
-    
     public function place_order(): void
     {
         $this->require_method('POST');
@@ -1902,8 +1943,8 @@ $item['total_amount'] = round($item['subtotal'] + $item['gst_amount'], 2);
                 'user_id'           => $user_id,
                 'address_id'        => $address_id,
                 'order_number'      => $order_number,
-               'subtotal'    => $subtotal,
-'gst_amount'  => $total_gst,
+                'subtotal'    => $subtotal,
+                'gst_amount'  => $total_gst,
                 'delivery_charge'   => $delivery_charge,
                 'discount'          => $discount,
                 'total_amount'      => $total_amount,
@@ -1926,67 +1967,67 @@ $item['total_amount'] = round($item['subtotal'] + $item['gst_amount'], 2);
 
             $this->db->trans_commit();
 
-           $this->send_response(true, 'Razorpay order created. Complete the payment to confirm.', [
-    'order_id'          => $order_id,
-    'order_number'      => $order_number,
-    'amount'            => $total_amount,
-    'currency'          => $currency,
-    'key_id'            => $key_id,
-    'gst_amount'  => $total_gst,
+            $this->send_response(true, 'Razorpay order created. Complete the payment to confirm.', [
+                'order_id'          => $order_id,
+                'order_number'      => $order_number,
+                'amount'            => $total_amount,
+                'currency'          => $currency,
+                'key_id'            => $key_id,
+                'gst_amount'  => $total_gst,
 
                 'delivery_charge' => $delivery_charge,
 
 
-    // Actual Razorpay Order ID
-    'razorpay_order_id' => $gateway['data']['id'],
+                // Actual Razorpay Order ID
+                'razorpay_order_id' => $gateway['data']['id'],
 
-    // Dummy values for Postman testing
-    // 'test_verify_payload' => [
-    //     'razorpay_order_id'   => $gateway['data']['id'],
-    //     'razorpay_payment_id' => 'pay_T9N71ItLv8bR0s',
-    //     'razorpay_signature'  => hash_hmac(
-    //         'sha256',
-    //         $gateway['data']['id'] . '|pay_T9N71ItLv8bR0s',
-    //         $key_secret
-    //     ),
-    // ],
-]);
+                // Dummy values for Postman testing
+                // 'test_verify_payload' => [
+                //     'razorpay_order_id'   => $gateway['data']['id'],
+                //     'razorpay_payment_id' => 'pay_T9N71ItLv8bR0s',
+                //     'razorpay_signature'  => hash_hmac(
+                //         'sha256',
+                //         $gateway['data']['id'] . '|pay_T9N71ItLv8bR0s',
+                //         $key_secret
+                //     ),
+                // ],
+            ]);
 
-        /* ---------------- COD ---------------- */
-        $this->db->trans_begin();
+            /* ---------------- COD ---------------- */
+            $this->db->trans_begin();
 
-        $this->db->insert('orders', [
-            'user_id'         => $user_id,
-            'address_id'      => $address_id,
-            'order_number'    => $order_number,
-          'subtotal'    => $subtotal,
-'gst_amount'  => $total_gst,
-            'delivery_charge' => $delivery_charge,
-            'discount'        => $discount,
-            'total_amount'    => $total_amount,
-            'total_items'     => $cart_summary['total_quantity'],
-            'payment_method'  => 'cod',
-            'payment_status'  => 'pending',
-            'status'          => 'pending',
-            'notes'           => $notes,
-            'created_at'      => date('Y-m-d H:i:s'),
-        ]);
+            $this->db->insert('orders', [
+                'user_id'         => $user_id,
+                'address_id'      => $address_id,
+                'order_number'    => $order_number,
+                'subtotal'    => $subtotal,
+                'gst_amount'  => $total_gst,
+                'delivery_charge' => $delivery_charge,
+                'discount'        => $discount,
+                'total_amount'    => $total_amount,
+                'total_items'     => $cart_summary['total_quantity'],
+                'payment_method'  => 'cod',
+                'payment_status'  => 'pending',
+                'status'          => 'pending',
+                'notes'           => $notes,
+                'created_at'      => date('Y-m-d H:i:s'),
+            ]);
 
-        $order_id = $this->db->insert_id();
-        $this->insert_order_items($order_id, $cart_summary['items']);
-        $this->reduce_stock($cart_summary['items']);
-        $this->insert_status_history($order_id, 'pending', 'Order placed successfully', 'system');
-        $this->db->where('user_id', $user_id)->delete('cart_items');
+            $order_id = $this->db->insert_id();
+            $this->insert_order_items($order_id, $cart_summary['items']);
+            $this->reduce_stock($cart_summary['items']);
+            $this->insert_status_history($order_id, 'pending', 'Order placed successfully', 'system');
+            $this->db->where('user_id', $user_id)->delete('cart_items');
 
-        if ($this->db->trans_status() === false) {
-            $this->db->trans_rollback();
-            $this->send_response(false, 'Failed to place order. Please try again.', null, 500);
+            if ($this->db->trans_status() === false) {
+                $this->db->trans_rollback();
+                $this->send_response(false, 'Failed to place order. Please try again.', null, 500);
+            }
+
+            $this->db->trans_commit();
+
+            $this->send_response(true, 'Order placed successfully.', $this->format_order_full($order_id, $user_id), 201);
         }
-
-        $this->db->trans_commit();
-
-        $this->send_response(true, 'Order placed successfully.', $this->format_order_full($order_id, $user_id), 201);
-    }
     }
 
     public function verify_order_payment(): void
@@ -2050,154 +2091,153 @@ $item['total_amount'] = round($item['subtotal'] + $item['gst_amount'], 2);
         }
 
         $this->db->trans_commit();
-$this->load->library('shiprocket');
-$this->shiprocket->create_order($order->id);
+        $this->load->library('shiprocket');
+        $this->shiprocket->create_order($order->id);
         $this->send_response(true, 'Payment verified. Order confirmed.', $this->format_order_full($order->id, $user_id));
     }
 
 
-public function check_delivery_charge()
-{
-    $this->require_method('POST');
-    $pincode = $this->input_value('pincode');
+    public function check_delivery_charge()
+    {
+        $this->require_method('POST');
+        $pincode = $this->input_value('pincode');
 
-    if (!$pincode) {
-        $this->send_response(false, 'Pincode is required.', null, 400);
-    }
-
-    $this->load->library('shiprocket');
-    $result = $this->shiprocket->check_serviceability('360002', $pincode);
-    // $this->send_response(true, 'Delivery charge fetched', $result);
-        $this->send_response(true, 'debug', ['token_ok' => !empty($token), 'raw' => $result]);
-
-}
-   public function shiprocket_webhook(): void
-{
-    // echo "<pre>";
-    // print_r(getallheaders());
-
-    // echo "\n\nSERVER:\n";
-    // print_r($_SERVER);
-
-    // exit;
-    // Verify token from header
-    $received_token = $this->input->get_request_header('x-api-key', true);
-    $expected_token  = trim((string) config_item('shiprocket_webhook_token'));
-    log_message('error', 'WEBHOOK - received token: [' . var_export($received_token, true) . ']');
-    log_message('error', 'WEBHOOK - expected token: [' . var_export($expected_token, true) . ']');
-    log_message('error', 'WEBHOOK - all headers: ' . json_encode($this->input->request_headers()));
-
-    if (empty($received_token) || $received_token !== $expected_token) {
-        http_response_code(401);
-        echo json_encode(['status' => false, 'message' => 'Unauthorized']);
-        return;
-    }
-
-    $payload = json_decode(file_get_contents('php://input'), true);
-    log_message('error', 'SHIPROCKET WEBHOOK PAYLOAD: ' . json_encode($payload));
-
-    if (empty($payload['awb']) || empty($payload['current_status'])) {
-        echo json_encode(['status' => false, 'message' => 'Invalid payload']);
-        return;
-    }
-
-    $this->db->where('awb_code', $payload['awb'])->update('orders', [
-        'tracking_status' => $payload['current_status'],
-        'updated_at'      => date('Y-m-d H:i:s'),
-    ]);
-
-    // Optional: auto-update order status to 'delivered' when Shiprocket confirms delivery
-    if (stripos($payload['current_status'], 'delivered') !== false) {
-        $order = $this->db->get_where('orders', ['awb_code' => $payload['awb']])->row();
-        if ($order) {
-            $this->db->where('id', $order->id)->update('orders', ['status' => 'delivered']);
-            $this->db->insert('order_status_history', [
-                'order_id'   => $order->id,
-                'status'     => 'delivered',
-                'comment'    => 'Delivered (auto-updated via Shiprocket webhook)',
-                'updated_by' => 'system',
-                'created_at' => date('Y-m-d H:i:s'),
-            ]);
+        if (!$pincode) {
+            $this->send_response(false, 'Pincode is required.', null, 400);
         }
+
+        $this->load->library('shiprocket');
+        $result = $this->shiprocket->check_serviceability('360002', $pincode);
+        // $this->send_response(true, 'Delivery charge fetched', $result);
+        $this->send_response(true, 'debug', ['token_ok' => !empty($token), 'raw' => $result]);
     }
+    public function shiprocket_webhook(): void
+    {
+        // echo "<pre>";
+        // print_r(getallheaders());
 
-    echo json_encode(['status' => true]);
-}
- public function get_orders(): void
-{
-    $user_id = $this->require_token_user_id();
-    $this->ensure_orders_table();
+        // echo "\n\nSERVER:\n";
+        // print_r($_SERVER);
 
-    $current_page   = max(1, (int) ($this->input->get('page') ?? 1));
-    $items_per_page = 10;
-    $offset         = ($current_page - 1) * $items_per_page;
-    $status_filter  = trim($this->input->get('status') ?? '');
-    $valid_statuses = ['pending', 'confirmed', 'processing', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'];
+        // exit;
+        // Verify token from header
+        $received_token = $this->input->get_request_header('x-api-key', true);
+        $expected_token  = trim((string) config_item('shiprocket_webhook_token'));
+        log_message('error', 'WEBHOOK - received token: [' . var_export($received_token, true) . ']');
+        log_message('error', 'WEBHOOK - expected token: [' . var_export($expected_token, true) . ']');
+        log_message('error', 'WEBHOOK - all headers: ' . json_encode($this->input->request_headers()));
 
-    $this->db->where('user_id', $user_id);
-    if ($status_filter !== '' && in_array($status_filter, $valid_statuses, true)) {
-        $this->db->where('status', $status_filter);
+        if (empty($received_token) || $received_token !== $expected_token) {
+            http_response_code(401);
+            echo json_encode(['status' => false, 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $payload = json_decode(file_get_contents('php://input'), true);
+        log_message('error', 'SHIPROCKET WEBHOOK PAYLOAD: ' . json_encode($payload));
+
+        if (empty($payload['awb']) || empty($payload['current_status'])) {
+            echo json_encode(['status' => false, 'message' => 'Invalid payload']);
+            return;
+        }
+
+        $this->db->where('awb_code', $payload['awb'])->update('orders', [
+            'tracking_status' => $payload['current_status'],
+            'updated_at'      => date('Y-m-d H:i:s'),
+        ]);
+
+        // Optional: auto-update order status to 'delivered' when Shiprocket confirms delivery
+        if (stripos($payload['current_status'], 'delivered') !== false) {
+            $order = $this->db->get_where('orders', ['awb_code' => $payload['awb']])->row();
+            if ($order) {
+                $this->db->where('id', $order->id)->update('orders', ['status' => 'delivered']);
+                $this->db->insert('order_status_history', [
+                    'order_id'   => $order->id,
+                    'status'     => 'delivered',
+                    'comment'    => 'Delivered (auto-updated via Shiprocket webhook)',
+                    'updated_by' => 'system',
+                    'created_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        }
+
+        echo json_encode(['status' => true]);
     }
-    $total_orders = $this->db->count_all_results('orders');
+    public function get_orders(): void
+    {
+        $user_id = $this->require_token_user_id();
+        $this->ensure_orders_table();
 
-    $this->db->where('user_id', $user_id);
-    if ($status_filter !== '' && in_array($status_filter, $valid_statuses, true)) {
-        $this->db->where('status', $status_filter);
+        $current_page   = max(1, (int) ($this->input->get('page') ?? 1));
+        $items_per_page = 10;
+        $offset         = ($current_page - 1) * $items_per_page;
+        $status_filter  = trim($this->input->get('status') ?? '');
+        $valid_statuses = ['pending', 'confirmed', 'processing', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'];
+
+        $this->db->where('user_id', $user_id);
+        if ($status_filter !== '' && in_array($status_filter, $valid_statuses, true)) {
+            $this->db->where('status', $status_filter);
+        }
+        $total_orders = $this->db->count_all_results('orders');
+
+        $this->db->where('user_id', $user_id);
+        if ($status_filter !== '' && in_array($status_filter, $valid_statuses, true)) {
+            $this->db->where('status', $status_filter);
+        }
+        $orders = $this->db->order_by('id', 'DESC')->limit($items_per_page, $offset)->get('orders')->result();
+
+        $order_list = array_map(function ($order) {
+            $first_item = $this->db->where('order_id', $order->id)->limit(1)->get('order_items')->row();
+
+            // ✅ Convert filename to URL using helper
+            $image_url = $first_item && !empty($first_item->product_image)
+                ? $this->get_product_image_url($first_item->product_image)
+                : '';
+
+            return [
+                'order_id'          => (int) $order->id,
+                'order_number'      => $order->order_number,
+                'status'            => $order->status,
+                'payment_method'    => $order->payment_method,
+                'payment_status'    => $order->payment_status,
+                'total_amount'      => (float) $order->total_amount,
+                'total_items'       => (int) $order->total_items,
+                'first_item_name'   => $first_item->product_name ?? '',
+                'first_item_image'  => $image_url,
+                'created_at'        => $order->created_at,
+            ];
+        }, $orders);
+
+        $this->send_response(true, 'Orders fetched successfully.', [
+            'total_orders'   => $total_orders,
+            'current_page'   => $current_page,
+            'items_per_page' => $items_per_page,
+            'total_pages'    => (int) ceil($total_orders / $items_per_page),
+            'orders'         => $order_list,
+        ]);
     }
-    $orders = $this->db->order_by('id', 'DESC')->limit($items_per_page, $offset)->get('orders')->result();
-
-    $order_list = array_map(function ($order) {
-        $first_item = $this->db->where('order_id', $order->id)->limit(1)->get('order_items')->row();
-        
-        // ✅ Convert filename to URL using helper
-        $image_url = $first_item && !empty($first_item->product_image) 
-            ? $this->get_product_image_url($first_item->product_image)
-            : '';
-
-        return [
-            'order_id'          => (int) $order->id,
-            'order_number'      => $order->order_number,
-            'status'            => $order->status,
-            'payment_method'    => $order->payment_method,
-            'payment_status'    => $order->payment_status,
-            'total_amount'      => (float) $order->total_amount,
-            'total_items'       => (int) $order->total_items,
-            'first_item_name'   => $first_item->product_name ?? '',
-            'first_item_image'  => $image_url,
-            'created_at'        => $order->created_at,
-        ];
-    }, $orders);
-
-    $this->send_response(true, 'Orders fetched successfully.', [
-        'total_orders'   => $total_orders,
-        'current_page'   => $current_page,
-        'items_per_page' => $items_per_page,
-        'total_pages'    => (int) ceil($total_orders / $items_per_page),
-        'orders'         => $order_list,
-    ]);
-}
 
     /*-----------------------------------------------------------------------
     | GET ORDER DETAILS
     | GET /api/get_order_details/{order_id}  [Auth required]
     |-----------------------------------------------------------------------*/
- public function get_order_details(int $order_id = 0): void
-{
-    $user_id = $this->require_token_user_id();
-    $this->ensure_orders_table();
+    public function get_order_details(int $order_id = 0): void
+    {
+        $user_id = $this->require_token_user_id();
+        $this->ensure_orders_table();
 
-    if ($order_id <= 0) {
-        $this->send_response(false, 'A valid order ID is required.', null, 400);
+        if ($order_id <= 0) {
+            $this->send_response(false, 'A valid order ID is required.', null, 400);
+        }
+
+        $order = $this->format_order_full($order_id, $user_id);
+
+        if (!$order) {
+            $this->send_response(false, 'Order not found.', null, 404);
+        }
+
+        $this->send_response(true, 'Order details fetched successfully.', $order);
     }
-
-    $order = $this->format_order_full($order_id, $user_id);
-
-    if (!$order) {
-        $this->send_response(false, 'Order not found.', null, 404);
-    }
-
-    $this->send_response(true, 'Order details fetched successfully.', $order);
-}
 
     /*-----------------------------------------------------------------------
     | CANCEL ORDER
@@ -2273,7 +2313,15 @@ public function check_delivery_charge()
     |-----------------------------------------------------------------------*/
     public function privacy_policy(): void
     {
-        $content = '
+        $page = $this->General_model->getOne('policy_pages', ['slug' => 'privacy_policy']);
+
+        if ($page) {
+            $title = $page->title;
+            $content = $page->content;
+            $last_updated = date('Y-m-d', strtotime($page->updated_at));
+        } else {
+            $title = 'Privacy Policy';
+            $content = '
                 <h2>1. Introduction</h2>
             <p>Ghanshyam Murtibhandar ("we", "us", "our") values the trust you place in us when you use our mobile application and website to browse and purchase idols, murtis, puja it                ems, and other religious products. This Privacy Policy explains what information we collect, how we use it, and the choices you have regarding your data.</p>
 
@@ -2326,12 +2374,14 @@ public function check_delivery_charge()
 
             <h2>10. Contact Us</h2>
             <p>If you have any questions, concerns, or requests regarding this Privacy Policy or your personal data, please reach out to us through the support option available in the app.</p>
-                ';
+            ';
+            $last_updated = date('Y-m-d');
+        }
 
         $this->send_response(true, 'Privacy Policy fetched successfully.', [
-            'title'        => 'Privacy Policy',
+            'title'        => $title,
             'app_name'     => 'Ghanshyam Murtibhandar',
-            'last_updated' => date('Y-m-d'),
+            'last_updated' => $last_updated,
             'content'      => $content,
         ]);
     }
@@ -2342,7 +2392,15 @@ public function check_delivery_charge()
     |-----------------------------------------------------------------------*/
     public function terms_conditions(): void
     {
-        $content = '
+        $page = $this->General_model->getOne('policy_pages', ['slug' => 'terms_conditions']);
+
+        if ($page) {
+            $title = $page->title;
+            $content = $page->content;
+            $last_updated = date('Y-m-d', strtotime($page->updated_at));
+        } else {
+            $title = 'Terms & Conditions';
+            $content = '
             <h2>1. Acceptance of Terms</h2>
             <p>By registering on or using the Ghanshyam Murtibhandar application, you agree to be bound by these Terms & Conditions. If you do not agree, please discontinue use of the app immediately. These terms apply to all registered users browsing or purchasing idols, murtis, and religious products through our platform.</p>
 
@@ -2381,12 +2439,14 @@ public function check_delivery_charge()
 
             <h2>13. Contact Us</h2>
             <p>For any questions regarding these Terms & Conditions, please contact us through the support option available within the Ghanshyam Murtibhandar app.</p>
-                ';
+            ';
+            $last_updated = date('Y-m-d');
+        }
 
         $this->send_response(true, 'Terms & Conditions fetched successfully.', [
-            'title'        => 'Terms & Conditions',
+            'title'        => $title,
             'app_name'     => 'Ghanshyam Murtibhandar',
-            'last_updated' => date('Y-m-d'),
+            'last_updated' => $last_updated,
             'content'      => $content,
         ]);
     }
@@ -2397,7 +2457,15 @@ public function check_delivery_charge()
     |-----------------------------------------------------------------------*/
     public function refund_policy(): void
     {
-        $content = '
+        $page = $this->General_model->getOne('policy_pages', ['slug' => 'refund_policy']);
+
+        if ($page) {
+            $title = $page->title;
+            $content = $page->content;
+            $last_updated = date('Y-m-d', strtotime($page->updated_at));
+        } else {
+            $title = 'Refund Policy';
+            $content = '
             <h2>1. Overview</h2>
             <p>Ghanshyam Murtibhandar aims to provide carefully packed idols, murtis, puja items, and religious products. This Refund Policy explains when cancellations, replacements, and refunds may be considered for purchases made through our application or website.</p>
 
@@ -2414,6 +2482,7 @@ public function check_delivery_charge()
                 <li>Requests made without required proof such as photos, videos, or order details.</li>
                 <li>Customized, made-to-order, or specially arranged products, unless damaged, defective, or incorrect.</li>
                 <li>Products returned without prior approval from our support team.</li>
+                <li>Products returned without original packaging.</li>
             </ul>
 
             <h2>5. Return & Replacement Process</h2>
@@ -2433,12 +2502,14 @@ public function check_delivery_charge()
 
             <h2>10. Contact Us</h2>
             <p>For cancellation, return, replacement, or refund requests, please contact us through the support option available within the Ghanshyam Murtibhandar app.</p>
-                ';
+            ';
+            $last_updated = date('Y-m-d');
+        }
 
         $this->send_response(true, 'Refund Policy fetched successfully.', [
-            'title'        => 'Refund Policy',
+            'title'        => $title,
             'app_name'     => 'Ghanshyam Murtibhandar',
-            'last_updated' => date('Y-m-d'),
+            'last_updated' => $last_updated,
             'content'      => $content,
         ]);
     }
@@ -2467,5 +2538,59 @@ public function check_delivery_charge()
         }
 
         $this->send_response(true, 'Logout successful - token invalidated.');
+    }
+
+    /*-----------------------------------------------------------------------
+    | HELP & SUPPORT
+    | GET /api/help_support
+    |-----------------------------------------------------------------------*/
+    public function help_support(): void
+    {
+        $settings = $this->db->get_where('help_support', ['id' => 1])->row();
+
+        if (!$settings) {
+            $settings = (object) [
+                'phone_number'    => '',
+                'email'           => '',
+                'whatsapp_number' => '',
+                'telegram_link'   => '',
+                'instagram_link'  => '',
+                'facebook_link'   => '',
+                'youtube_link'    => ''
+            ];
+        }
+
+        $phone = $settings->phone_number ?? '';
+        $email = $settings->email ?? '';
+
+        // Fallback: If phone_number or email is empty, fetch them from the admin profile
+        if (empty($phone) || empty($email)) {
+            $admin = $this->db->get_where('users', ['role' => 'admin'])->row();
+            if (!$admin) {
+                $admin = $this->db->get_where('users', ['role' => 1])->row();
+            }
+            if (!$admin) {
+                $admin = $this->db->order_by('id', 'ASC')->get('users')->row();
+            }
+            if ($admin) {
+                if (empty($phone)) {
+                    $phone = $admin->mobile ?? '';
+                }
+                if (empty($email)) {
+                    $email = $admin->email ?? '';
+                }
+            }
+        }
+
+        $this->send_response(true, 'Help & Support settings fetched successfully.', [
+            'phone_number'    => $phone,
+            'email'           => $email,
+            'whatsapp_number' => $settings->whatsapp_number ?? '',
+            'telegram_link'   => $settings->telegram_link ?? '',
+            'instagram_link'  => $settings->instagram_link ?? '',
+            'facebook_link'   => $settings->facebook_link ?? '',
+            'youtube_link'    => $settings->youtube_link ?? '',
+            'updated_at'      => $settings->updated_at ?? date('Y-m-d H:i:s')
+        ]);
     }
 }

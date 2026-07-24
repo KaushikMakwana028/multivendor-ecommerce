@@ -637,6 +637,17 @@
                 <i class="fas fa-tags"></i> Offers
             </a>
 
+            <!-- Content -->
+            <div class="sidebar-section-title">Content</div>
+
+            <a href="<?= base_url('admin/pages') ?>" class="sidebar-menu-item <?= ($this->uri->segment(1) == 'admin' && $this->uri->segment(2) == 'pages' && $this->uri->segment(3) != 'help-support') ? 'active' : '' ?>">
+                <i class="fas fa-file-alt"></i> Policy Pages
+            </a>
+
+            <a href="<?= base_url('admin/pages/help-support') ?>" class="sidebar-menu-item <?= ($this->uri->segment(1) == 'admin' && $this->uri->segment(2) == 'pages' && $this->uri->segment(3) == 'help-support') ? 'active' : '' ?>">
+                <i class="fas fa-headset"></i> Help & Support
+            </a>
+
             <!-- Account -->
             <div class="sidebar-section-title">Account</div>
 

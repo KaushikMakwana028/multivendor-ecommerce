@@ -88,6 +88,18 @@ $route['dashboard'] = 'Dashboard/index';
 
 /*
 |--------------------------------------------------------------------------
+| Policy Pages Admin
+|--------------------------------------------------------------------------
+*/
+$route['admin/pages'] = 'Admin_pages/index';
+$route['admin/pages/help-support'] = 'Admin_pages/help_support';
+$route['admin/pages/help-support/update'] = 'Admin_pages/update_help_support';
+$route['admin/pages/edit/(:num)'] = 'Admin_pages/edit/$1';
+$route['admin/pages/update/(:num)'] = 'Admin_pages/update/$1';
+
+
+/*
+|--------------------------------------------------------------------------
 | Categories
 |--------------------------------------------------------------------------
 */
@@ -155,6 +167,7 @@ $route['api/terms_conditions']                = 'api/terms_conditions';
 $route['api/terms_condition']                 = 'api/terms_conditions';
 $route['api/refund_policy']                   = 'api/refund_policy';
 $route['api/refund_policies']                 = 'api/refund_policy';
+$route['api/help_support']                    = 'api/help_support';
 $route['api/place_order']                    = 'api/place_order';
 $route['api/verify_order_payment']           = 'api/verify_order_payment';
 $route['api/get_orders']                     = 'api/get_orders';

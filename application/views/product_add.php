@@ -42,6 +42,10 @@
                                 <?php endforeach; ?>
                             </select>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">HSN Code</label>
+                            <input type="text" name="hsn_code" class="form-control" placeholder="Enter HSN code (e.g. 6912)" value="<?= isset($_POST['hsn_code']) ? htmlspecialchars($_POST['hsn_code']) : '' ?>">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -73,21 +77,21 @@
                                 value="<?= isset($_POST['price']) ? $_POST['price'] : '' ?>"
                                 required>
                         </div>
-<?php
-$gst_rates = [0, 3, 5, 12, 18, 28];
-?>
+                        <?php
+                        $gst_rates = [0, 3, 5, 12, 18, 28];
+                        ?>
 
-<div class="col-md-4">
-    <label class="form-label">GST (%)</label>
-    <select name="gst_percent" class="form-select">
-        <option value="">Select GST</option>
-        <?php foreach($gst_rates as $gst): ?>
-            <option value="<?= $gst ?>" <?= (isset($_POST['gst_percent']) && $_POST['gst_percent']==$gst)?'selected':''; ?>>
-                <?= $gst ?>%
-            </option>
-        <?php endforeach; ?>
-    </select>
-</div>
+                        <div class="col-md-4">
+                            <label class="form-label">GST (%)</label>
+                            <select name="gst_percent" class="form-select">
+                                <option value="">Select GST</option>
+                                <?php foreach ($gst_rates as $gst): ?>
+                                    <option value="<?= $gst ?>" <?= (isset($_POST['gst_percent']) && $_POST['gst_percent'] == $gst) ? 'selected' : ''; ?>>
+                                        <?= $gst ?>%
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                         <div class="col-md-4">
                             <label class="form-label">Stock <span style="color:var(--primary-red)">*</span></label>
                             <input type="number" name="stock" class="form-control" placeholder="0"
@@ -112,21 +116,21 @@ $gst_rates = [0, 3, 5, 12, 18, 28];
                 <div class="card-header-dark">
                     <h6><i class="fas fa-images me-2" style="color:var(--primary-red);"></i>Product Images</h6>
                 </div>
-               <div class="card-body-dark">
-   <div class="mb-3">
-    <label class="form-label">Upload Images</label>
-    <input type="file"
-        name="image[]"
-        id="productImages"
-        class="form-control"
-        accept="image/*"
-        multiple
-        onchange="handleFileSelect(this, 'productImages', 'imagePreviewContainer')">
-    <small style="color:#666;font-size:11px;">Select multiple images (one at a time or together). First image = primary.</small>
-</div>
-<div id="imagePreviewContainer" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
-    <div id="imagePreviewContainer" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
-</div>
+                <div class="card-body-dark">
+                    <div class="mb-3">
+                        <label class="form-label">Upload Images</label>
+                        <input type="file"
+                            name="image[]"
+                            id="productImages"
+                            class="form-control"
+                            accept="image/*"
+                            multiple
+                            onchange="handleFileSelect(this, 'productImages', 'imagePreviewContainer')">
+                        <small style="color:#666;font-size:11px;">Select multiple images (one at a time or together). First image = primary.</small>
+                    </div>
+                    <div id="imagePreviewContainer" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+                    <div id="imagePreviewContainer" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+                </div>
             </div>
 
             <div class="card-dark mt-4">
@@ -191,9 +195,9 @@ $gst_rates = [0, 3, 5, 12, 18, 28];
                 img.style.height = '80px';
                 img.style.objectFit = 'cover';
                 img.style.borderRadius = '8px';
-                img.style.border = index === 0
-                    ? '2px solid var(--primary-red)'
-                    : '1px solid var(--border-color)';
+                img.style.border = index === 0 ?
+                    '2px solid var(--primary-red)' :
+                    '1px solid var(--border-color)';
 
                 wrapper.appendChild(img);
 
