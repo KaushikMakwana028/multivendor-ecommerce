@@ -28,10 +28,10 @@ class Order extends CI_Controller
     | Product List
     |--------------------------------------------------------------------------
     */
-   public function index()
+    public function index()
     {
         $data['page_title'] = 'Orders Management';
-        
+
         $this->load->view('includes/header', $data);
         $this->load->view('order_view', $data);
         $this->load->view('includes/footer', $data);
@@ -380,10 +380,10 @@ class Order extends CI_Controller
         return $html;
     }
 
-  public function view($order_id)
-{
-    // Get order details with customer and address
-    $this->db->select('orders.*, 
+    public function view($order_id)
+    {
+        // Get order details with customer and address
+        $this->db->select('orders.*, 
                       users.name as customer_name, 
                       users.email as customer_email, 
                       users.mobile as customer_phone,
@@ -396,49 +396,49 @@ class Order extends CI_Controller
                       user_addresses.state,
                       user_addresses.pincode,
                       user_addresses.country');
-    $this->db->from('orders');
-    $this->db->join('users', 'users.id = orders.user_id', 'left');
-    $this->db->join('user_addresses', 'user_addresses.id = orders.address_id', 'left');
-    $this->db->where('orders.id', $order_id);
-    $order = $this->db->get()->row_array();
+        $this->db->from('orders');
+        $this->db->join('users', 'users.id = orders.user_id', 'left');
+        $this->db->join('user_addresses', 'user_addresses.id = orders.address_id', 'left');
+        $this->db->where('orders.id', $order_id);
+        $order = $this->db->get()->row_array();
 
-    if (!$order) {
-        $this->session->set_flashdata('error', 'Order not found.');
-        redirect('admin/orders');
+        if (!$order) {
+            $this->session->set_flashdata('error', 'Order not found.');
+            redirect('admin/orders');
+        }
+
+        // Get order items
+        $this->db->select('order_items.*, products.name as product_name, products.image');
+        $this->db->from('order_items');
+        $this->db->join('products', 'products.id = order_items.product_id', 'left');
+        $this->db->where('order_items.order_id', $order_id);
+        $order['items'] = $this->db->get()->result_array();
+
+        // Get status history
+        $this->db->where('order_id', $order_id);
+        $this->db->order_by('created_at', 'DESC');
+        $order['status_history'] = $this->db->get('order_status_history')->result_array();
+
+        $data['order'] = $order;
+        $data['page_title'] = 'Order Details - ' . $order['order_number'];
+
+        $this->load->view('includes/header', $data);
+        $this->load->view('order_details', $data);
+        $this->load->view('includes/footer', $data);
     }
-
-    // Get order items
-    $this->db->select('order_items.*, products.name as product_name, products.image');
-    $this->db->from('order_items');
-    $this->db->join('products', 'products.id = order_items.product_id', 'left');
-    $this->db->where('order_items.order_id', $order_id);
-    $order['items'] = $this->db->get()->result_array();
-
-    // Get status history
-    $this->db->where('order_id', $order_id);
-    $this->db->order_by('created_at', 'DESC');
-    $order['status_history'] = $this->db->get('order_status_history')->result_array();
-
-    $data['order'] = $order;
-    $data['page_title'] = 'Order Details - ' . $order['order_number'];
-
-    $this->load->view('includes/header', $data);
-    $this->load->view('order_details', $data);
-    $this->load->view('includes/footer', $data);
-}
 
     public function update_status($order_id, $new_status)
     {
         $valid_statuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
-        
+
         if (!in_array($new_status, $valid_statuses)) {
             $this->session->set_flashdata('error', 'Invalid status.');
             redirect('admin/orders');
         }
-if ($new_status === 'confirmed') {
-    $this->load->library('shiprocket');
-    $this->shiprocket->create_order($order_id);
-}
+        if ($new_status === 'confirmed') {
+            $this->load->library('shiprocket');
+            $this->shiprocket->create_order($order_id);
+        }
         $this->db->where('id', $order_id);
         $this->db->update('orders', [
             'status' => $new_status,
@@ -453,103 +453,103 @@ if ($new_status === 'confirmed') {
             'changed_by' => 'admin',
             'created_at' => date('Y-m-d H:i:s')
         ]);
-        
+
 
         $this->session->set_flashdata('success', 'Order status updated successfully.');
         redirect('order/view/' . $order_id);
     }
 
- public function assign_courier($order_id)
-{
-    $courier_id = $this->input->post('courier_id');
-    $etd = $this->input->post('etd');
-    $order = $this->db->get_where('orders', ['id' => $order_id])->row();
+    public function assign_courier($order_id)
+    {
+        $courier_id = $this->input->post('courier_id');
+        $etd = $this->input->post('etd');
+        $order = $this->db->get_where('orders', ['id' => $order_id])->row();
 
-    $this->load->library('shiprocket');
-    $response = $this->shiprocket->assign_awb($order->shiprocket_shipment_id, $courier_id);
-
-    if (!empty($response['response']['data']['awb_code'])) {
-        $this->db->where('id', $order_id)->update('orders', [
-            'awb_code'                => $response['response']['data']['awb_code'],
-            'courier_name'            => $response['response']['data']['courier_name'] ?? null,
-            'expected_delivery_date'  => $etd,
-            'status'                  => 'shipped',
-            'updated_at'              => date('Y-m-d H:i:s'),
-        ]);
-
-        $this->db->insert('order_status_history', [
-            'order_id'   => $order_id,
-            'status'     => 'shipped',
-            'comment'    => 'Courier assigned: ' . ($response['response']['data']['courier_name'] ?? ''),
-            'updated_by' => 'admin',
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
-
-        echo json_encode([
-            'status'   => true,
-            'awb_code' => $response['response']['data']['awb_code'],
-        ]);
-    } else {
-        echo json_encode([
-            'status'  => false,
-            'message' => $response['message'] ?? 'Failed to assign courier',
-        ]);
-    }
-}
-public function get_couriers($order_id)
-{
-    $order = $this->db->select('orders.*, user_addresses.pincode')
-        ->from('orders')
-        ->join('user_addresses', 'user_addresses.id = orders.address_id', 'left')
-        ->where('orders.id', $order_id)
-        ->get()->row();
-
-    if (!$order || empty($order->shiprocket_shipment_id)) {
-        echo json_encode(['status' => false, 'message' => 'Shipment not created yet']);
-        return;
-    }
-
-    $this->load->library('shiprocket');
-    $result = $this->shiprocket->get_available_couriers($order->shiprocket_shipment_id);
-
-    echo json_encode($result);
-}
-public function schedule_pickup($order_id)
-{
-    $order = $this->db->get_where('orders', ['id' => $order_id])->row();
-    $this->load->library('shiprocket');
-    $response = $this->shiprocket->schedule_pickup($order->shiprocket_shipment_id);
-
-    if (!empty($response['pickup_status']) || stripos($response['message'] ?? '', 'already') !== false) {
-        $this->db->where('id', $order_id)->update('orders', ['pickup_scheduled' => 1]);
-        echo json_encode(['status' => true, 'message' => $response['message'] ?? 'Pickup scheduled successfully']);
-    } else {
-        echo json_encode(['status' => false, 'message' => $response['message'] ?? 'Failed to schedule pickup']);
-    }
-}
-
-public function download_label($order_id)
-{
-    $order = $this->db->get_where('orders', ['id' => $order_id])->row();
-    if (!$order) {
-        echo json_encode(['status' => false, 'message' => 'Order not found']);
-        return;
-    }
-
-    if (!empty($order->shiprocket_shipment_id)) {
         $this->load->library('shiprocket');
-        $response = $this->shiprocket->generate_label($order->shiprocket_shipment_id);
-        if (!empty($response['label_url'])) {
-            $this->db->where('id', $order_id)->update('orders', ['label_url' => $response['label_url']]);
+        $response = $this->shiprocket->assign_awb($order->shiprocket_shipment_id, $courier_id);
+
+        if (!empty($response['response']['data']['awb_code'])) {
+            $this->db->where('id', $order_id)->update('orders', [
+                'awb_code'                => $response['response']['data']['awb_code'],
+                'courier_name'            => $response['response']['data']['courier_name'] ?? null,
+                'expected_delivery_date'  => $etd,
+                'status'                  => 'shipped',
+                'updated_at'              => date('Y-m-d H:i:s'),
+            ]);
+
+            $this->db->insert('order_status_history', [
+                'order_id'   => $order_id,
+                'status'     => 'shipped',
+                'comment'    => 'Courier assigned: ' . ($response['response']['data']['courier_name'] ?? ''),
+                'updated_by' => 'admin',
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            echo json_encode([
+                'status'   => true,
+                'awb_code' => $response['response']['data']['awb_code'],
+            ]);
+        } else {
+            echo json_encode([
+                'status'  => false,
+                'message' => $response['message'] ?? 'Failed to assign courier',
+            ]);
+        }
+    }
+    public function get_couriers($order_id)
+    {
+        $order = $this->db->select('orders.*, user_addresses.pincode')
+            ->from('orders')
+            ->join('user_addresses', 'user_addresses.id = orders.address_id', 'left')
+            ->where('orders.id', $order_id)
+            ->get()->row();
+
+        if (!$order || empty($order->shiprocket_shipment_id)) {
+            echo json_encode(['status' => false, 'message' => 'Shipment not created yet']);
+            return;
+        }
+
+        $this->load->library('shiprocket');
+        $result = $this->shiprocket->get_available_couriers($order->shiprocket_shipment_id);
+
+        echo json_encode($result);
+    }
+    public function schedule_pickup($order_id)
+    {
+        $order = $this->db->get_where('orders', ['id' => $order_id])->row();
+        $this->load->library('shiprocket');
+        $response = $this->shiprocket->schedule_pickup($order->shiprocket_shipment_id);
+
+        if (!empty($response['pickup_status']) || stripos($response['message'] ?? '', 'already') !== false) {
+            $this->db->where('id', $order_id)->update('orders', ['pickup_scheduled' => 1]);
+            echo json_encode(['status' => true, 'message' => $response['message'] ?? 'Pickup scheduled successfully']);
+        } else {
+            echo json_encode(['status' => false, 'message' => $response['message'] ?? 'Failed to schedule pickup']);
         }
     }
 
-    echo json_encode(['status' => true, 'url' => site_url('order/print_label/' . $order_id)]);
-}
+    public function download_label($order_id)
+    {
+        $order = $this->db->get_where('orders', ['id' => $order_id])->row();
+        if (!$order) {
+            echo json_encode(['status' => false, 'message' => 'Order not found']);
+            return;
+        }
 
-public function print_label($order_id)
-{
-    $this->db->select('orders.*, 
+        if (!empty($order->shiprocket_shipment_id)) {
+            $this->load->library('shiprocket');
+            $response = $this->shiprocket->generate_label($order->shiprocket_shipment_id);
+            if (!empty($response['label_url'])) {
+                $this->db->where('id', $order_id)->update('orders', ['label_url' => $response['label_url']]);
+            }
+        }
+
+        echo json_encode(['status' => true, 'url' => site_url('order/print_label/' . $order_id)]);
+    }
+
+    public function print_label($order_id)
+    {
+        $this->db->select('orders.*, 
                       users.name as customer_name, 
                       users.email as customer_email, 
                       users.mobile as customer_phone,
@@ -562,50 +562,50 @@ public function print_label($order_id)
                       user_addresses.state,
                       user_addresses.pincode,
                       user_addresses.country');
-    $this->db->from('orders');
-    $this->db->join('users', 'users.id = orders.user_id', 'left');
-    $this->db->join('user_addresses', 'user_addresses.id = orders.address_id', 'left');
-    $this->db->where('orders.id', $order_id);
-    $order = $this->db->get()->row_array();
+        $this->db->from('orders');
+        $this->db->join('users', 'users.id = orders.user_id', 'left');
+        $this->db->join('user_addresses', 'user_addresses.id = orders.address_id', 'left');
+        $this->db->where('orders.id', $order_id);
+        $order = $this->db->get()->row_array();
 
-    if (!$order) {
-        show_404();
-    }
-
-    $this->db->select('order_items.*, products.name as product_name');
-    $this->db->from('order_items');
-    $this->db->join('products', 'products.id = order_items.product_id', 'left');
-    $this->db->where('order_items.order_id', $order_id);
-    $order['items'] = $this->db->get()->result_array();
-
-    $data['order']      = $order;
-    $data['page_title'] = 'Shipping Label - ' . $order['order_number'];
-
-    $this->load->view('shipping_label_view', $data);
-}
-
-public function download_invoice($order_id)
-{
-    $order = $this->db->get_where('orders', ['id' => $order_id])->row();
-    if (!$order) {
-        echo json_encode(['status' => false, 'message' => 'Order not found']);
-        return;
-    }
-
-    if (!empty($order->shiprocket_order_id)) {
-        $this->load->library('shiprocket');
-        $response = $this->shiprocket->generate_invoice($order->shiprocket_order_id);
-        if (!empty($response['invoice_url'])) {
-            $this->db->where('id', $order_id)->update('orders', ['invoice_url' => $response['invoice_url']]);
+        if (!$order) {
+            show_404();
         }
+
+        $this->db->select('order_items.*, products.name as product_name');
+        $this->db->from('order_items');
+        $this->db->join('products', 'products.id = order_items.product_id', 'left');
+        $this->db->where('order_items.order_id', $order_id);
+        $order['items'] = $this->db->get()->result_array();
+
+        $data['order']      = $order;
+        $data['page_title'] = 'Shipping Label - ' . $order['order_number'];
+
+        $this->load->view('shipping_label_view', $data);
     }
 
-    echo json_encode(['status' => true, 'url' => site_url('order/print_invoice/' . $order_id)]);
-}
+    public function download_invoice($order_id)
+    {
+        $order = $this->db->get_where('orders', ['id' => $order_id])->row();
+        if (!$order) {
+            echo json_encode(['status' => false, 'message' => 'Order not found']);
+            return;
+        }
 
-public function print_invoice($order_id)
-{
-    $this->db->select('orders.*, 
+        if (!empty($order->shiprocket_order_id)) {
+            $this->load->library('shiprocket');
+            $response = $this->shiprocket->generate_invoice($order->shiprocket_order_id);
+            if (!empty($response['invoice_url'])) {
+                $this->db->where('id', $order_id)->update('orders', ['invoice_url' => $response['invoice_url']]);
+            }
+        }
+
+        echo json_encode(['status' => true, 'url' => site_url('order/print_invoice/' . $order_id)]);
+    }
+
+    public function print_invoice($order_id)
+    {
+        $this->db->select('orders.*, 
                       users.name as customer_name, 
                       users.email as customer_email, 
                       users.mobile as customer_phone,
@@ -618,47 +618,47 @@ public function print_invoice($order_id)
                       user_addresses.state,
                       user_addresses.pincode,
                       user_addresses.country');
-    $this->db->from('orders');
-    $this->db->join('users', 'users.id = orders.user_id', 'left');
-    $this->db->join('user_addresses', 'user_addresses.id = orders.address_id', 'left');
-    $this->db->where('orders.id', $order_id);
-    $order = $this->db->get()->row_array();
+        $this->db->from('orders');
+        $this->db->join('users', 'users.id = orders.user_id', 'left');
+        $this->db->join('user_addresses', 'user_addresses.id = orders.address_id', 'left');
+        $this->db->where('orders.id', $order_id);
+        $order = $this->db->get()->row_array();
 
-    if (!$order) {
-        show_404();
+        if (!$order) {
+            show_404();
+        }
+
+        $this->db->select('order_items.*, products.name as product_name');
+        $this->db->from('order_items');
+        $this->db->join('products', 'products.id = order_items.product_id', 'left');
+        $this->db->where('order_items.order_id', $order_id);
+        $order['items'] = $this->db->get()->result_array();
+
+        $data['order']      = $order;
+        $data['page_title'] = 'Tax Invoice - ' . $order['order_number'];
+
+        $this->load->view('invoice_view', $data);
     }
+    public function refresh_tracking($order_id)
+    {
+        $order = $this->db->get_where('orders', ['id' => $order_id])->row();
 
-    $this->db->select('order_items.*, products.name as product_name');
-    $this->db->from('order_items');
-    $this->db->join('products', 'products.id = order_items.product_id', 'left');
-    $this->db->where('order_items.order_id', $order_id);
-    $order['items'] = $this->db->get()->result_array();
+        if (!$order || empty($order->shiprocket_shipment_id)) {
+            echo json_encode(['status' => false, 'message' => 'Shipment not created yet']);
+            return;
+        }
 
-    $data['order']      = $order;
-    $data['page_title'] = 'Tax Invoice - ' . $order['order_number'];
+        $this->load->library('shiprocket');
+        $result = $this->shiprocket->track_order($order_id);
 
-    $this->load->view('invoice_view', $data);
-}
-public function refresh_tracking($order_id)
-{
-    $order = $this->db->get_where('orders', ['id' => $order_id])->row();
+        if (!empty($result['data']['tracking_data']['shipment_track'][0]['current_status'])) {
+            $status = $result['data']['tracking_data']['shipment_track'][0]['current_status'];
+            $this->db->where('id', $order_id)->update('orders', [
+                'tracking_status' => $status,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
 
-    if (!$order || empty($order->shiprocket_shipment_id)) {
-        echo json_encode(['status' => false, 'message' => 'Shipment not created yet']);
-        return;
+        echo json_encode(['status' => true, 'data' => $result]);
     }
-
-    $this->load->library('shiprocket');
-    $result = $this->shiprocket->track_order($order_id);
-
-    if (!empty($result['data']['tracking_data']['shipment_track'][0]['current_status'])) {
-        $status = $result['data']['tracking_data']['shipment_track'][0]['current_status'];
-        $this->db->where('id', $order_id)->update('orders', [
-            'tracking_status' => $status,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ]);
-    }
-
-    echo json_encode(['status' => true, 'data' => $result]);
-}
 }

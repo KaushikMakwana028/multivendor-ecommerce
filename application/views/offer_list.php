@@ -27,12 +27,12 @@
     <div class="card-body-dark">
         <div class="row g-2 align-items-center">
             <div class="col-12 col-md-3">
-                <input type="text" 
-                       id="searchInput" 
-                       class="form-control-dark" 
-                       placeholder="Search by title or coupon..." 
-                       value="<?= htmlspecialchars($this->input->get('search') ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                       autocomplete="off">
+                <input type="text"
+                    id="searchInput"
+                    class="form-control-dark"
+                    placeholder="Search by title or coupon..."
+                    value="<?= htmlspecialchars($this->input->get('search') ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                    autocomplete="off">
             </div>
             <div class="col-6 col-md-2">
                 <select id="statusFilter" class="form-control-dark">
@@ -168,316 +168,324 @@
 </div>
 
 <style>
-/* Dark Inputs and Filter Controls Styling */
-.form-control-dark {
-    background: #1a1a1a !important;
-    border: 1px solid var(--border-color, #2d2d2d) !important;
-    color: #ffffff !important;
-    padding: 10px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    width: 100%;
-    transition: all 0.2s ease-in-out;
-}
-
-.form-control-dark:focus {
-    outline: none !important;
-    border-color: var(--primary-red, #E01020) !important;
-    box-shadow: 0 0 0 3px rgba(224, 16, 32, 0.15);
-    background: #222222 !important;
-}
-
-select.form-control-dark {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999999' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E") !important;
-    background-repeat: no-repeat !important;
-    background-position: right 14px center !important;
-    padding-right: 36px !important;
-    cursor: pointer;
-}
-
-select.form-control-dark option {
-    background-color: #1a1a1a;
-    color: #ffffff;
-    padding: 10px;
-}
-
-.btn-clear {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border-color, #2d2d2d);
-    color: #cccccc;
-    padding: 9px 18px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease-in-out;
-}
-
-.btn-clear:hover {
-    background: var(--primary-red, #E01020);
-    border-color: var(--primary-red, #E01020);
-    color: #ffffff;
-}
-
-#offersTableContainer {
-    min-height: 350px;
-    transition: opacity 0.3s;
-}
-
-/* Custom Pagination Styling */
-.custom-pagination {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 20px 0;
-}
-
-.pagination-container {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.pagination-btn {
-    min-width: 40px;
-    height: 40px;
-    border: 1px solid var(--border-color, #333333);
-    background: #1a1a1a;
-    color: var(--white-text, #ffffff);
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s ease-in-out;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 12px;
-}
-
-.pagination-btn:hover:not(.disabled) {
-    background: var(--primary-red, #E01020);
-    border-color: var(--primary-red, #E01020);
-    color: #ffffff;
-    transform: translateY(-2px);
-}
-
-.pagination-btn.active {
-    background: var(--primary-red, #E01020);
-    border-color: var(--primary-red, #E01020);
-    font-weight: 700;
-    color: #ffffff;
-}
-
-.pagination-btn.disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-}
-
-.pagination-dots {
-    color: #666;
-    padding: 0 8px;
-    font-weight: 600;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .filter-card-container {
-        margin-bottom: 12px !important;
-    }
-    .filter-card-container .card-body-dark {
-        padding: 10px 12px !important;
-    }
-    .filter-card-container .row.g-2 {
-        --bs-gutter-x: 6px !important;
-        --bs-gutter-y: 6px !important;
-    }
+    /* Dark Inputs and Filter Controls Styling */
     .form-control-dark {
-        padding: 6px 8px !important;
-        font-size: 11px !important;
-        height: 34px !important;
-        border-radius: 6px !important;
+        background: #1a1a1a !important;
+        border: 1px solid var(--border-color, #2d2d2d) !important;
+        color: #ffffff !important;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        width: 100%;
+        transition: all 0.2s ease-in-out;
     }
+
+    .form-control-dark:focus {
+        outline: none !important;
+        border-color: var(--primary-red, #E01020) !important;
+        box-shadow: 0 0 0 3px rgba(224, 16, 32, 0.15);
+        background: #222222 !important;
+    }
+
     select.form-control-dark {
-        background-position: right 6px center !important;
-        padding-right: 22px !important;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999999' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 14px center !important;
+        padding-right: 36px !important;
+        cursor: pointer;
     }
+
+    select.form-control-dark option {
+        background-color: #1a1a1a;
+        color: #ffffff;
+        padding: 10px;
+    }
+
     .btn-clear {
-        padding: 6px 8px !important;
-        font-size: 11px !important;
-        height: 34px !important;
-        border-radius: 6px !important;
-        width: 100% !important;
-        justify-content: center !important;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-color, #2d2d2d);
+        color: #cccccc;
+        padding: 9px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease-in-out;
     }
-    #resultsInfo {
-        font-size: 10px !important;
-        white-space: nowrap;
-        text-align: right;
+
+    .btn-clear:hover {
+        background: var(--primary-red, #E01020);
+        border-color: var(--primary-red, #E01020);
+        color: #ffffff;
     }
-    .table-responsive {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+
+    #offersTableContainer {
+        min-height: 350px;
+        transition: opacity 0.3s;
     }
-    .table-dark-custom {
-        min-width: 900px;
+
+    /* Custom Pagination Styling */
+    .custom-pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0;
     }
-}
+
+    .pagination-container {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .pagination-btn {
+        min-width: 40px;
+        height: 40px;
+        border: 1px solid var(--border-color, #333333);
+        background: #1a1a1a;
+        color: var(--white-text, #ffffff);
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s ease-in-out;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 12px;
+    }
+
+    .pagination-btn:hover:not(.disabled) {
+        background: var(--primary-red, #E01020);
+        border-color: var(--primary-red, #E01020);
+        color: #ffffff;
+        transform: translateY(-2px);
+    }
+
+    .pagination-btn.active {
+        background: var(--primary-red, #E01020);
+        border-color: var(--primary-red, #E01020);
+        font-weight: 700;
+        color: #ffffff;
+    }
+
+    .pagination-btn.disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .pagination-dots {
+        color: #666;
+        padding: 0 8px;
+        font-weight: 600;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .filter-card-container {
+            margin-bottom: 12px !important;
+        }
+
+        .filter-card-container .card-body-dark {
+            padding: 10px 12px !important;
+        }
+
+        .filter-card-container .row.g-2 {
+            --bs-gutter-x: 6px !important;
+            --bs-gutter-y: 6px !important;
+        }
+
+        .form-control-dark {
+            padding: 6px 8px !important;
+            font-size: 11px !important;
+            height: 34px !important;
+            border-radius: 6px !important;
+        }
+
+        select.form-control-dark {
+            background-position: right 6px center !important;
+            padding-right: 22px !important;
+        }
+
+        .btn-clear {
+            padding: 6px 8px !important;
+            font-size: 11px !important;
+            height: 34px !important;
+            border-radius: 6px !important;
+            width: 100% !important;
+            justify-content: center !important;
+        }
+
+        #resultsInfo {
+            font-size: 10px !important;
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-dark-custom {
+            min-width: 900px;
+        }
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
-$(document).ready(function() {
-    let currentPage    = 1;
-    let searchQuery    = $('#searchInput').val() ? $('#searchInput').val().trim() : '';
-    let statusFilter   = $('#statusFilter').val() || '';
-    let typeFilter     = $('#typeFilter').val() || '';
-    let featuredFilter = $('#featuredFilter').val() || '';
-    let searchTimeout  = null;
-    let csrfToken      = '<?= $this->security->get_csrf_hash(); ?>';
+    $(document).ready(function() {
+        let currentPage = 1;
+        let searchQuery = $('#searchInput').val() ? $('#searchInput').val().trim() : '';
+        let statusFilter = $('#statusFilter').val() || '';
+        let typeFilter = $('#typeFilter').val() || '';
+        let featuredFilter = $('#featuredFilter').val() || '';
+        let searchTimeout = null;
+        let csrfToken = '<?= $this->security->get_csrf_hash(); ?>';
 
-    updateResetButton();
+        updateResetButton();
 
-    // Auto Search on Keyup (Debounced)
-    $('#searchInput').on('keyup input', function() {
-        clearTimeout(searchTimeout);
-        const val = $(this).val().trim();
-        searchTimeout = setTimeout(function() {
-            searchQuery = val;
+        // Auto Search on Keyup (Debounced)
+        $('#searchInput').on('keyup input', function() {
+            clearTimeout(searchTimeout);
+            const val = $(this).val().trim();
+            searchTimeout = setTimeout(function() {
+                searchQuery = val;
+                currentPage = 1;
+                loadOffers();
+                updateResetButton();
+            }, 300);
+        });
+
+        // Auto Filter on Select Changes
+        $('#statusFilter').on('change', function() {
+            statusFilter = $(this).val();
             currentPage = 1;
             loadOffers();
             updateResetButton();
-        }, 300);
-    });
+        });
 
-    // Auto Filter on Select Changes
-    $('#statusFilter').on('change', function() {
-        statusFilter = $(this).val();
-        currentPage  = 1;
-        loadOffers();
-        updateResetButton();
-    });
-
-    $('#typeFilter').on('change', function() {
-        typeFilter  = $(this).val();
-        currentPage = 1;
-        loadOffers();
-        updateResetButton();
-    });
-
-    $('#featuredFilter').on('change', function() {
-        featuredFilter = $(this).val();
-        currentPage    = 1;
-        loadOffers();
-        updateResetButton();
-    });
-
-    // Reset Filters
-    $('#resetFilters').on('click', function() {
-        $('#searchInput').val('');
-        $('#statusFilter').val('');
-        $('#typeFilter').val('');
-        $('#featuredFilter').val('');
-        searchQuery    = '';
-        statusFilter   = '';
-        typeFilter     = '';
-        featuredFilter = '';
-        currentPage    = 1;
-        updateResetButton();
-        loadOffers();
-    });
-
-    // Pagination Click
-    $(document).on('click', '.pagination-btn:not(.disabled)', function() {
-        const page = $(this).data('page');
-        if (page) {
-            currentPage = page;
+        $('#typeFilter').on('change', function() {
+            typeFilter = $(this).val();
+            currentPage = 1;
             loadOffers();
-            $('html, body').animate({
-                scrollTop: $('#offersTableContainer').offset().top - 100
-            }, 300);
-        }
-    });
+            updateResetButton();
+        });
 
-    // AJAX Load Function
-    function loadOffers() {
-        showLoading();
+        $('#featuredFilter').on('change', function() {
+            featuredFilter = $(this).val();
+            currentPage = 1;
+            loadOffers();
+            updateResetButton();
+        });
 
-        $.ajax({
-            url: '<?= site_url("offers/get_offers") ?>',
-            type: 'POST',
-            data: {
-                page: currentPage,
-                search: searchQuery,
-                status: statusFilter,
-                type: typeFilter,
-                featured: featuredFilter,
-                csrf_test_name: csrfToken
-            },
-            dataType: 'json',
-            success: function(response) {
-                if (response.csrf_hash) {
-                    csrfToken = response.csrf_hash;
-                }
-                if (response.status) {
-                    $('#offersTableBody').html(response.html);
-                    $('#paginationContainer').html(response.pagination);
+        // Reset Filters
+        $('#resetFilters').on('click', function() {
+            $('#searchInput').val('');
+            $('#statusFilter').val('');
+            $('#typeFilter').val('');
+            $('#featuredFilter').val('');
+            searchQuery = '';
+            statusFilter = '';
+            typeFilter = '';
+            featuredFilter = '';
+            currentPage = 1;
+            updateResetButton();
+            loadOffers();
+        });
 
-                    if (response.total_records > 0) {
-                        const start = ((response.current_page - 1) * 10) + 1;
-                        const end   = Math.min(response.current_page * 10, response.total_records);
-                        let info    = `Showing ${start}-${end} of ${response.total_records} offers`;
-
-                        let activeFilters = [];
-                        if (searchQuery)    activeFilters.push(`search: "${searchQuery}"`);
-                        if (statusFilter)   activeFilters.push(`status: ${statusFilter == '1' ? 'Active' : 'Inactive'}`);
-                        if (typeFilter)     activeFilters.push(`type: ${typeFilter}`);
-                        if (featuredFilter) activeFilters.push(`featured: ${featuredFilter == '1' ? 'Featured' : 'Not Featured'}`);
-                        if (activeFilters.length) info += ` (${activeFilters.join(', ')})`;
-
-                        $('#resultsInfo').text(info);
-                    } else {
-                        $('#resultsInfo').text('No offers found');
-                    }
-                } else {
-                    showError('Failed to load offers');
-                }
-            },
-            error: function(xhr) {
-                console.error('AJAX Error:', xhr);
-                showError('Something went wrong loading offers.');
-            },
-            complete: function() {
-                hideLoading();
+        // Pagination Click
+        $(document).on('click', '.pagination-btn:not(.disabled)', function() {
+            const page = $(this).data('page');
+            if (page) {
+                currentPage = page;
+                loadOffers();
+                $('html, body').animate({
+                    scrollTop: $('#offersTableContainer').offset().top - 100
+                }, 300);
             }
         });
-    }
 
-    function updateResetButton() {
-        if (searchQuery || statusFilter || typeFilter || featuredFilter) {
-            $('#resetFilters').show();
-        } else {
-            $('#resetFilters').hide();
+        // AJAX Load Function
+        function loadOffers() {
+            showLoading();
+
+            $.ajax({
+                url: '<?= site_url("offers/get_offers") ?>',
+                type: 'POST',
+                data: {
+                    page: currentPage,
+                    search: searchQuery,
+                    status: statusFilter,
+                    type: typeFilter,
+                    featured: featuredFilter,
+                    csrf_test_name: csrfToken
+                },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.csrf_hash) {
+                        csrfToken = response.csrf_hash;
+                    }
+                    if (response.status) {
+                        $('#offersTableBody').html(response.html);
+                        $('#paginationContainer').html(response.pagination);
+
+                        if (response.total_records > 0) {
+                            const start = ((response.current_page - 1) * 10) + 1;
+                            const end = Math.min(response.current_page * 10, response.total_records);
+                            let info = `Showing ${start}-${end} of ${response.total_records} offers`;
+
+                            let activeFilters = [];
+                            if (searchQuery) activeFilters.push(`search: "${searchQuery}"`);
+                            if (statusFilter) activeFilters.push(`status: ${statusFilter == '1' ? 'Active' : 'Inactive'}`);
+                            if (typeFilter) activeFilters.push(`type: ${typeFilter}`);
+                            if (featuredFilter) activeFilters.push(`featured: ${featuredFilter == '1' ? 'Featured' : 'Not Featured'}`);
+                            if (activeFilters.length) info += ` (${activeFilters.join(', ')})`;
+
+                            $('#resultsInfo').text(info);
+                        } else {
+                            $('#resultsInfo').text('No offers found');
+                        }
+                    } else {
+                        showError('Failed to load offers');
+                    }
+                },
+                error: function(xhr) {
+                    console.error('AJAX Error:', xhr);
+                    showError('Something went wrong loading offers.');
+                },
+                complete: function() {
+                    hideLoading();
+                }
+            });
         }
-    }
 
-    function showLoading() {
-        $('#loadingSpinner').show();
-        $('#offersTableContainer').css('opacity', '0.5');
-    }
+        function updateResetButton() {
+            if (searchQuery || statusFilter || typeFilter || featuredFilter) {
+                $('#resetFilters').show();
+            } else {
+                $('#resetFilters').hide();
+            }
+        }
 
-    function hideLoading() {
-        $('#loadingSpinner').hide();
-        $('#offersTableContainer').css('opacity', '1');
-    }
+        function showLoading() {
+            $('#loadingSpinner').show();
+            $('#offersTableContainer').css('opacity', '0.5');
+        }
 
-    function showError(msg) {
-        $('#offersTableBody').html(`
+        function hideLoading() {
+            $('#loadingSpinner').hide();
+            $('#offersTableContainer').css('opacity', '1');
+        }
+
+        function showError(msg) {
+            $('#offersTableBody').html(`
             <tr>
                 <td colspan="11" style="text-align:center; padding:50px; color:#E01020;">
                     <i class="fas fa-exclamation-triangle" style="font-size:42px; margin-bottom:14px; display:block;"></i>
@@ -485,8 +493,8 @@ $(document).ready(function() {
                 </td>
             </tr>
         `);
-        $('#paginationContainer').html('');
-        $('#resultsInfo').text('Error loading data');
-    }
-});
+            $('#paginationContainer').html('');
+            $('#resultsInfo').text('Error loading data');
+        }
+    });
 </script>

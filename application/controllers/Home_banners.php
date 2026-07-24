@@ -1,7 +1,8 @@
 <?php
-defined('BASEPATH') OR exit('No direct script access allowed');
+defined('BASEPATH') or exit('No direct script access allowed');
 
-class Home_banners extends CI_Controller {
+class Home_banners extends CI_Controller
+{
 
     public function __construct()
     {
@@ -68,9 +69,9 @@ class Home_banners extends CI_Controller {
     public function create()
     {
         $data['page_title'] = 'Add Banner';
-        
+
         $this->load->view('includes/header', $data);
-       
+
         $this->load->view('banner_form', $data);
         $this->load->view('includes/footer');
     }
@@ -341,7 +342,7 @@ class Home_banners extends CI_Controller {
         $html = '';
         foreach ($banners as $i => $banner) {
             $serial = $offset + $i + 1;
-            
+
             // Image
             if (!empty($banner['image'])) {
                 $img_html = '<img src="' . base_url('uploads/banners/' . $banner['image']) . '" style="width:100px;height:60px;border-radius:8px;object-fit:cover;border:1px solid var(--border-color);" alt="' . htmlspecialchars($banner['title'], ENT_QUOTES, 'UTF-8') . '">';
@@ -371,7 +372,7 @@ class Home_banners extends CI_Controller {
 
             // Start & End dates
             $start_date_html = !empty($banner['start_date']) ? '<div style="font-size:12px;color:#ccc;">' . date('d M Y', strtotime($banner['start_date'])) . '</div>' : '<span style="color:#666;">-</span>';
-            
+
             $end_date_html = '<span style="color:#666;">-</span>';
             if (!empty($banner['end_date'])) {
                 $end_date_html = '<div style="font-size:12px;color:#ccc;">' . date('d M Y', strtotime($banner['end_date'])) . '</div>';
@@ -381,8 +382,8 @@ class Home_banners extends CI_Controller {
             }
 
             // Status
-            $status_html = $banner['is_active'] 
-                ? '<span class="badge-active">Active</span>' 
+            $status_html = $banner['is_active']
+                ? '<span class="badge-active">Active</span>'
                 : '<span class="badge-inactive">Inactive</span>';
 
             // Created

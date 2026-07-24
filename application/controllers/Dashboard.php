@@ -77,7 +77,7 @@ class Dashboard extends CI_Controller
                 ->where('payment_status', 'paid')
                 ->where('DATE(created_at)', $date)
                 ->get('orders')->row();
-            
+
             $revenue_chart[] = [
                 'date' => date('M d', strtotime($date)),
                 'amount' => (float)($rev_row->total ?? 0)

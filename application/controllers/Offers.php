@@ -1,16 +1,19 @@
 <?php
-defined('BASEPATH') OR exit('No direct script access allowed');
+defined('BASEPATH') or exit('No direct script access allowed');
 
-class Offers extends CI_Controller {
+class Offers extends CI_Controller
+{
 
-    public function __construct() {
+    public function __construct()
+    {
         parent::__construct();
         if (!$this->session->userdata('admin_id')) redirect('admin');
         $this->load->helper(['form', 'url', 'file']);
         $this->load->library(['form_validation', 'upload', 'pagination']);
     }
 
-    public function index() {
+    public function index()
+    {
         $search   = trim($this->input->get('search', true) ?? '');
         $status   = $this->input->get('status', true);
         $type     = trim($this->input->get('type', true) ?? '');
@@ -35,9 +38,14 @@ class Offers extends CI_Controller {
         $total_pages   = ceil($total_records / $limit);
 
         switch ($sort) {
-            case 'oldest': $this->db->order_by('created_at', 'ASC'); break;
-            case 'display_order': $this->db->order_by('display_order', 'ASC'); break;
-            default: $this->db->order_by('created_at', 'DESC');
+            case 'oldest':
+                $this->db->order_by('created_at', 'ASC');
+                break;
+            case 'display_order':
+                $this->db->order_by('display_order', 'ASC');
+                break;
+            default:
+                $this->db->order_by('created_at', 'DESC');
         }
 
         $this->db->limit($limit, $offset);
@@ -53,7 +61,8 @@ class Offers extends CI_Controller {
     }
 
     // AJAX: Get offers with filters and pagination
-    public function get_offers() {
+    public function get_offers()
+    {
         $search   = trim($this->input->get_post('search', true) ?? '');
         $status   = $this->input->get_post('status', true);
         $type     = trim($this->input->get_post('type', true) ?? '');
@@ -78,9 +87,14 @@ class Offers extends CI_Controller {
         $total_pages   = ceil($total_records / $limit);
 
         switch ($sort) {
-            case 'oldest': $this->db->order_by('created_at', 'ASC'); break;
-            case 'display_order': $this->db->order_by('display_order', 'ASC'); break;
-            default: $this->db->order_by('created_at', 'DESC');
+            case 'oldest':
+                $this->db->order_by('created_at', 'ASC');
+                break;
+            case 'display_order':
+                $this->db->order_by('display_order', 'ASC');
+                break;
+            default:
+                $this->db->order_by('created_at', 'DESC');
         }
 
         $this->db->limit($limit, $offset);
@@ -100,7 +114,8 @@ class Offers extends CI_Controller {
         ]);
     }
 
-    private function generate_offers_html($offers, $offset = 0) {
+    private function generate_offers_html($offers, $offset = 0)
+    {
         if (empty($offers)) {
             return '
                 <tr>
@@ -116,7 +131,7 @@ class Offers extends CI_Controller {
         foreach ($offers as $i => $offer) {
             $serial = $offset + $i + 1;
 
-            $img_html = !empty($offer['image']) 
+            $img_html = !empty($offer['image'])
                 ? '<img src="' . base_url('uploads/offers/' . $offer['image']) . '" style="width:80px;height:50px;border-radius:6px;object-fit:cover;border:1px solid var(--border-color);">'
                 : '<div style="width:80px;height:50px;background:var(--light-gray);border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border-color);color:#555;"><i class="fas fa-image"></i></div>';
 
@@ -169,7 +184,8 @@ class Offers extends CI_Controller {
         return $html;
     }
 
-    private function generate_pagination($current_page, $total_pages) {
+    private function generate_pagination($current_page, $total_pages)
+    {
         if ($total_pages <= 1) {
             return '';
         }
@@ -212,18 +228,20 @@ class Offers extends CI_Controller {
         return $html;
     }
 
-    public function create() {
+    public function create()
+    {
         $data['categories'] = $this->db->where('is_active', 1)->get('categories')->result_array();
         $data['products'] = $this->db->where('is_active', 1)->get('products')->result_array();
         $data['page_title'] = 'Add Offer';
 
         $this->load->view('includes/header', $data);
-       
+
         $this->load->view('offer_form', $data);
         $this->load->view('includes/footer');
     }
 
-    public function store() {
+    public function store()
+    {
         $this->form_validation->set_rules('title', 'Offer Title', 'required');
         $this->form_validation->set_rules('offer_type', 'Offer Type', 'required');
         $this->form_validation->set_rules('start_date', 'Start Date', 'required');
@@ -277,7 +295,8 @@ class Offers extends CI_Controller {
         redirect('offers');
     }
 
-    public function edit($id) {
+    public function edit($id)
+    {
         $data['offer'] = $this->db->get_where('offers', ['id' => $id])->row_array();
         if (!$data['offer']) {
             $this->session->set_flashdata('error', 'Offer not found.');
@@ -292,7 +311,8 @@ class Offers extends CI_Controller {
         $this->load->view('includes/footer');
     }
 
-    public function update($id) {
+    public function update($id)
+    {
         $offer = $this->db->get_where('offers', ['id' => $id])->row_array();
         if (!$offer) {
             $this->session->set_flashdata('error', 'Offer not found.');
@@ -348,7 +368,8 @@ class Offers extends CI_Controller {
         redirect('offers');
     }
 
-    public function delete($id) {
+    public function delete($id)
+    {
         $offer = $this->db->get_where('offers', ['id' => $id])->row_array();
         if (!$offer) {
             $this->session->set_flashdata('error', 'Offer not found.');
@@ -360,7 +381,8 @@ class Offers extends CI_Controller {
         redirect('offers');
     }
 
-    public function change_status($id) {
+    public function change_status($id)
+    {
         $offer = $this->db->get_where('offers', ['id' => $id])->row_array();
         if (!$offer) {
             $this->session->set_flashdata('error', 'Offer not found.');
@@ -371,7 +393,8 @@ class Offers extends CI_Controller {
         redirect('offers');
     }
 
-    public function toggle_featured($id) {
+    public function toggle_featured($id)
+    {
         $offer = $this->db->get_where('offers', ['id' => $id])->row_array();
         if (!$offer) {
             $this->session->set_flashdata('error', 'Offer not found.');
@@ -382,7 +405,8 @@ class Offers extends CI_Controller {
         redirect('offers');
     }
 
-    public function validate_end_date($end_date) {
+    public function validate_end_date($end_date)
+    {
         $start_date = $this->input->post('start_date');
         if (strtotime($end_date) < strtotime($start_date)) {
             $this->form_validation->set_message('validate_end_date', 'End date cannot be before start date.');
