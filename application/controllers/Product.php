@@ -107,6 +107,7 @@ class Product extends CI_Controller
             'required|integer|greater_than_equal_to[1]|less_than_equal_to[24]'
         );
         $this->form_validation->set_rules('hsn_code', 'HSN Code', 'trim|max_length[50]');
+        $this->form_validation->set_rules('sku', 'SKU', 'trim|max_length[100]');
 
         if ($this->form_validation->run() == FALSE) {
             $user_id = $this->session->userdata('admin_id');
@@ -140,6 +141,7 @@ class Product extends CI_Controller
             'price'       => $this->input->post('price'),
             'gst_percent' => $this->input->post('gst_percent'),
             'hsn_code'    => $this->input->post('hsn_code', TRUE),
+            'sku'         => $this->input->post('sku', TRUE),
             'stock'       => $this->input->post('stock'),
             'is_active'   => $this->input->post('is_active') ? 1 : 0,
             'created_at'  => date('Y-m-d H:i:s'),
@@ -231,6 +233,7 @@ class Product extends CI_Controller
         $this->form_validation->set_rules('price', 'Price', 'required|numeric');
         $this->form_validation->set_rules('gst_percent', 'GST', 'required|integer|greater_than_equal_to[1]|less_than_equal_to[24]');
         $this->form_validation->set_rules('hsn_code', 'HSN Code', 'trim|max_length[50]');
+        $this->form_validation->set_rules('sku', 'SKU', 'trim|max_length[100]');
         $this->form_validation->set_rules('stock', 'Stock', 'required|integer');
 
         if ($this->form_validation->run() == FALSE) {
@@ -346,6 +349,7 @@ class Product extends CI_Controller
             'price'       => $this->input->post('price'),
             'gst_percent' => $this->input->post('gst_percent'),
             'hsn_code'    => $this->input->post('hsn_code', TRUE),
+            'sku'         => $this->input->post('sku', TRUE),
             'stock'       => $this->input->post('stock'),
             'is_active'   => $this->input->post('is_active') ? 1 : 0,
             'updated_at'  => date('Y-m-d H:i:s')

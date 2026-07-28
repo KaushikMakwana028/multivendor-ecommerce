@@ -33,7 +33,7 @@
                         <textarea name="description" class="form-control" rows="4" placeholder="Product description..."><?= isset($_POST['description']) ? $_POST['description'] : '' ?></textarea>
                     </div>
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Category <span style="color:var(--primary-red)">*</span></label>
                             <select name="category_id" class="form-select" required>
                                 <option value="">-- Select Category --</option>
@@ -42,9 +42,13 @@
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">HSN Code</label>
                             <input type="text" name="hsn_code" class="form-control" placeholder="Enter HSN code (e.g. 6912)" value="<?= isset($_POST['hsn_code']) ? htmlspecialchars($_POST['hsn_code']) : '' ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">SKU</label>
+                            <input type="text" name="sku" class="form-control" placeholder="Enter SKU (e.g. GM-001)" value="<?= isset($_POST['sku']) ? htmlspecialchars($_POST['sku']) : '' ?>">
                         </div>
                     </div>
                 </div>

@@ -943,7 +943,7 @@ class Api extends CI_Controller
         ])->count_all_results('products');
 
         $product_rows = $this->db
-            ->select('id, name, price, mrp, image, stock, hsn_code')
+            ->select('id, name, price, mrp, image, stock, hsn_code, sku')
             ->where(['category_id' => $category_id, 'is_active' => 1])
             ->order_by('name', 'ASC')
             ->limit($items_per_page, $offset)
@@ -997,6 +997,7 @@ class Api extends CI_Controller
                 'images'   => $images,
                 'in_stock' => ((int) $p->stock > 0),
                 'hsn_code' => $p->hsn_code ?? '',
+                'sku'      => $p->sku ?? '',
             ];
         }, $product_rows);
 
@@ -1027,7 +1028,7 @@ class Api extends CI_Controller
         $sort_by        = trim($this->input->get('sort') ?? 'name'); // name, price_low_high, price_high_low
 
         $this->db
-            ->select('p.id, p.name, p.price, p.mrp, p.image, p.stock, p.hsn_code,
+            ->select('p.id, p.name, p.price, p.mrp, p.image, p.stock, p.hsn_code, p.sku,
               c.id AS category_id, c.name AS category_name')
             ->from('products p')
             ->join('categories c', 'c.id = p.category_id', 'left')
@@ -1110,6 +1111,7 @@ class Api extends CI_Controller
                 'category_id'   => (int) $p->category_id,
                 'category_name' => $p->category_name ?? '',
                 'hsn_code'      => $p->hsn_code ?? '',
+                'sku'           => $p->sku ?? '',
             ];
         }, $product_rows);
 
@@ -1194,6 +1196,7 @@ class Api extends CI_Controller
             'category_name'       => $product->category_name ?? '',
             'is_active'           => (int) $product->is_active,
             'hsn_code'            => $product->hsn_code ?? '',
+            'sku'                 => $product->sku ?? '',
             'created_at'          => $product->created_at,
             'updated_at'          => $product->updated_at,
         ]);
@@ -2097,7 +2100,7 @@ subtotal
     }
 
 
-    public function check_delivery_charge()
+    public function verify_order_paymentverify_order_payment()
     {
         $this->require_method('POST');
         $pincode = $this->input_value('pincode');
