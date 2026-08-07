@@ -82,7 +82,16 @@
                             <label class="form-label">Stock <span style="color:var(--primary-red)">*</span></label>
                             <input type="number" name="stock" class="form-control" value="<?= $product->stock ?>" required>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <label class="form-label">Weight (in grams) <span style="color:var(--primary-red)">*</span></label>
+                            <input type="number"
+                                name="weight"
+                                class="form-control"
+                                placeholder="e.g. 500"
+                                value="<?= htmlspecialchars(isset($_POST['weight']) ? $_POST['weight'] : (isset($product->weight) ? ($product->weight * 1000) : '500')) ?>"
+                                required>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Status</label>
                             <select name="is_active" class="form-select">
                                 <option value="1" <?= $product->is_active == 1 ? 'selected' : '' ?>>Active</option>

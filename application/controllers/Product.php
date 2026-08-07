@@ -108,6 +108,7 @@ class Product extends CI_Controller
         );
         $this->form_validation->set_rules('hsn_code', 'HSN Code', 'trim|max_length[50]');
         $this->form_validation->set_rules('sku', 'SKU', 'trim|max_length[100]');
+        $this->form_validation->set_rules('weight', 'Weight', 'required|numeric|greater_than[0]');
 
         if ($this->form_validation->run() == FALSE) {
             $user_id = $this->session->userdata('admin_id');
@@ -143,6 +144,7 @@ class Product extends CI_Controller
             'hsn_code'    => $this->input->post('hsn_code', TRUE),
             'sku'         => $this->input->post('sku', TRUE),
             'stock'       => $this->input->post('stock'),
+            'weight'      => (float) $this->input->post('weight') / 1000,
             'is_active'   => $this->input->post('is_active') ? 1 : 0,
             'created_at'  => date('Y-m-d H:i:s'),
             'updated_at'  => date('Y-m-d H:i:s')
@@ -235,6 +237,7 @@ class Product extends CI_Controller
         $this->form_validation->set_rules('hsn_code', 'HSN Code', 'trim|max_length[50]');
         $this->form_validation->set_rules('sku', 'SKU', 'trim|max_length[100]');
         $this->form_validation->set_rules('stock', 'Stock', 'required|integer');
+        $this->form_validation->set_rules('weight', 'Weight', 'required|numeric|greater_than[0]');
 
         if ($this->form_validation->run() == FALSE) {
 
@@ -351,6 +354,7 @@ class Product extends CI_Controller
             'hsn_code'    => $this->input->post('hsn_code', TRUE),
             'sku'         => $this->input->post('sku', TRUE),
             'stock'       => $this->input->post('stock'),
+            'weight'      => (float) $this->input->post('weight') / 1000,
             'is_active'   => $this->input->post('is_active') ? 1 : 0,
             'updated_at'  => date('Y-m-d H:i:s')
         );

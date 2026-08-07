@@ -102,7 +102,17 @@
                                 value="<?= isset($_POST['stock']) ? $_POST['stock'] : '' ?>" required>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <label class="form-label">Weight (in grams) <span style="color:var(--primary-red)">*</span></label>
+                            <input type="number"
+                                name="weight"
+                                class="form-control"
+                                placeholder="e.g. 500"
+                                value="<?= isset($_POST['weight']) ? $_POST['weight'] : '500' ?>"
+                                required>
+                        </div>
+
+                        <div class="col-md-4">
                             <label class="form-label">Status</label>
                             <select name="is_active" class="form-select">
                                 <option value="1">Active</option>

@@ -165,10 +165,28 @@ public function get_available_couriers($shipment_id)
         ->where('orders.shiprocket_shipment_id', $shipment_id)
         ->get()->row();
 
+    if (!$order_row) {
+        return ['status' => false, 'message' => 'Order not found'];
+    }
+
+    $items = $this->CI->db->select('order_items.quantity, products.weight')
+        ->from('order_items')
+        ->join('products', 'products.id = order_items.product_id', 'left')
+        ->where('order_id', $order_row->id)
+        ->get()->result();
+
+    $total_weight = 0.0;
+    foreach ($items as $item) {
+        $total_weight += ((float) $item->weight ?: 0.5) * $item->quantity;
+    }
+    if ($total_weight <= 0) {
+        $total_weight = 0.5;
+    }
+
     $url = $this->base_url . 'courier/serviceability/?' . http_build_query([
         'pickup_postcode'   => $this->CI->config->item('shiprocket_pickup_pincode'),
         'delivery_postcode' => $order_row->pincode ?? '',
-        'weight'            => 0.5,
+        'weight'            => $total_weight,
         'cod'               => $order_row->payment_method === 'cod' ? 1 : 0,
     ]);
 

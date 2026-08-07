@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
-define('OTP_FIXED_MODE', true);
+// define('OTP_FIXED_MODE', true);
 
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
@@ -199,11 +199,6 @@ class Api extends CI_Controller
 
     private function send_otp_via_sms(string $mobileNo, string $otp): bool
     {
-        if (OTP_FIXED_MODE) {
-            log_message('info', '[DEV] OTP for ' . $mobileNo . ' is: ' . $otp);
-            return true;
-        }
-
         $message = "Hi $mobileNo\n\nYour Verification OTP is $otp Do not share this OTP with anyone for security reasons.\n\nRegards\nOMKARENT";
 
         $params = [
@@ -337,7 +332,7 @@ class Api extends CI_Controller
         }
 
         // Generate OTP
-        $otp = OTP_FIXED_MODE ? '123456' : (string) rand(100000, 999999);
+        $otp = (string) random_int(100000, 999999);
 
         // Clear old registration OTPs for this mobile
         $this->db->where('mobile', $mobile)->delete('user_registration_otps');
@@ -351,7 +346,7 @@ class Api extends CI_Controller
         ]);
 
         // Send SMS (disabled for testing)
-        // $this->send_otp_via_sms($mobile, $otp);
+        $this->send_otp_via_sms($mobile, $otp);
 
         $this->send_response(true, 'OTP sent successfully to your mobile number.', [
             'masked_mobile' => '*******' . substr($mobile, -4),
@@ -469,7 +464,7 @@ class Api extends CI_Controller
         }
 
         // ── Generate OTP ──────────────────────────────────────────────────
-        $otp = OTP_FIXED_MODE ? '123456' : (string) rand(100000, 999999);
+        $otp = (string) random_int(100000, 999999);
 
         // ── Clear old OTPs for this user_id ───────────────────────────────
         $this->db->where('user_id', (int) $user->id)->delete('user_login_otps');
@@ -482,9 +477,7 @@ class Api extends CI_Controller
         ]);
 
         // ── Send SMS ──────────────────────────────────────────────────────
-        // SMS sending is disabled during testing to avoid reducing OTP limits.
-        // Enable this line again when you want live OTP SMS delivery.
-        // $this->send_otp_via_sms($mobile, $otp);
+        $this->send_otp_via_sms($mobile, $otp); // $this->send_otp_via_sms($mobile, $otp);
 
         $this->send_response(true, 'OTP sent successfully to your mobile number.', [
             'masked_mobile' => '*******' . substr($mobile, -4),
@@ -1255,7 +1248,7 @@ class Api extends CI_Controller
     {
         $rows = $this->db
             ->select('ci.id AS cart_id, ci.product_id, ci.quantity, ci.created_at, ci.updated_at,
-    p.name, p.price, p.mrp, p.image, p.stock, p.is_active, p.gst_percent,p.hsn_code,
+    p.name, p.price, p.mrp, p.image, p.stock, p.is_active, p.gst_percent, p.hsn_code, p.weight,
     c.id AS category_id, c.name AS category_name')
             ->from('cart_items ci')
             ->join('products p', 'p.id = ci.product_id', 'left')
@@ -1270,12 +1263,14 @@ class Api extends CI_Controller
         $subtotal = 0.0;
         $total_mrp = 0.0;
         $total_gst = 0.0;
+        $total_weight = 0.0;
 
         foreach ($rows as $row) {
             $quantity = (int) $row->quantity;
             $price = (float) ($row->price ?? 0);
             $mrp = (float) ($row->mrp ?? 0);
             $gst_percent = (float)($row->gst_percent ?? 0);
+            $weight = (float)($row->weight ?? 0.5);
 
             $line_total  = $price * $quantity;          // before GST
             $gst_amount  = ($line_total * $gst_percent) / 100;
@@ -1287,6 +1282,7 @@ class Api extends CI_Controller
             // $total_gst += $line_gst;
             $total_gst += $gst_amount;
             $total_mrp += $line_mrp_total;
+            $total_weight += $weight * $quantity;
 
             $items[] = [
                 'cart_id'        => (int) $row->cart_id,
@@ -1304,6 +1300,7 @@ class Api extends CI_Controller
                 'stock_quantity' => (int) ($row->stock ?? 0),
                 'is_available'   => $available,
                 'line_total'     => $line_total,
+                'weight'         => $weight,
                 'created_at'     => $row->created_at,
                 'updated_at'     => $row->updated_at,
             ];
@@ -1317,6 +1314,7 @@ class Api extends CI_Controller
             'grand_total'   => round($subtotal + $total_gst, 2),
             'total_mrp'        => $total_mrp,
             'discount'         => max(0, $total_mrp - $subtotal),
+            'total_weight'     => $total_weight ?: 0.5,
             'items'            => $items,
         ];
     }
@@ -2028,13 +2026,63 @@ subtotal
     {
         $this->require_method('POST');
         $pincode = $this->input_value('pincode');
+        $cod = (int) $this->input_value('cod', 0);
+
+        if (empty($pincode)) {
+            $this->send_response(false, 'Pincode is required.', null, 400);
+        }
+
+        $total_weight = 0.5;
+
+        // Optionally decode token if present in headers to calculate cart weight
+        $header = $this->input->get_request_header('Authorization', true);
+        if ($header && preg_match('/Bearer\s(\S+)/', $header, $matches)) {
+            $token = $matches[1];
+            try {
+                $decoded = JWT::decode($token, new Key($this->jwt_secret, 'HS256'));
+                if (!empty($decoded->data->id)) {
+                    $user_id = (int) $decoded->data->id;
+                    $cart_summary = $this->get_cart_summary($user_id);
+                    $total_weight = (float) ($cart_summary['total_weight'] ?? 0.5);
+                }
+            } catch (Exception $e) {
+                // Gracefully ignore validation error for live app compatibility
+            }
+        }
 
         $this->load->library('shiprocket');
-        $token = $this->shiprocket->get_token();
-        $result = $this->shiprocket->check_serviceability('360001', $pincode);
+        $pickup_pincode = $this->config->item('shiprocket_pickup_pincode') ?: '360001';
+        $result = $this->shiprocket->check_serviceability($pickup_pincode, $pincode, $total_weight, $cod);
 
-        // TEMP DEBUG - remove after fixing
-        $this->send_response(true, 'debug', ['token_ok' => !empty($token), 'raw' => $result]);
+        // Round delivery rates to nearest integer (whole number)
+        if (isset($result['data']['available_courier_companies']) && is_array($result['data']['available_courier_companies'])) {
+            foreach ($result['data']['available_courier_companies'] as &$courier) {
+                if (isset($courier['rate'])) {
+                    $courier['rate'] = round((float)$courier['rate']);
+                }
+                if (isset($courier['freight_charge'])) {
+                    $courier['freight_charge'] = round((float)$courier['freight_charge']);
+                }
+                if (isset($courier['rto_charges'])) {
+                    $courier['rto_charges'] = round((float)$courier['rto_charges']);
+                }
+            }
+        }
+
+        // Ultimate compatibility payload to support all mobile app parsing structures:
+        $response_data = [];
+        if (is_array($result)) {
+            $response_data = $result;
+            if (isset($result['data']) && is_array($result['data'])) {
+                $response_data = array_merge($response_data, $result['data']);
+            }
+            $response_data['raw'] = $result;
+        } else {
+            $response_data = ['raw' => $result];
+        }
+        $response_data['token_ok'] = !empty($header);
+
+        $this->send_response(true, 'Delivery charge fetched', $response_data);
     }
     public function verify_order_payment(): void
     {
