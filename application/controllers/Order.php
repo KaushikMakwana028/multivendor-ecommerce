@@ -278,23 +278,38 @@ class Order extends CI_Controller
                                 <i class="fas fa-eye"></i>
                             </a>
                             
-                            <div class="dropdown" style="display:inline-block;">
-                                <button class="action-btn" 
-                                        title="Update Status" 
-                                        data-bs-toggle="dropdown">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-dark">
-                                    <li><a class="dropdown-item" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'confirmed\')">Mark Confirmed</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'processing\')">Mark Processing</a></li>
-                                    ' . $courier_item . '
-                                    <li><a class="dropdown-item" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'delivered\')">Mark Delivered</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item text-danger" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'cancelled\')">Cancel Order</a></li>
-                                </ul>
-                            </div>
+                           <div class="dropdown" style="display:inline-block;">
+    <button class="action-btn" 
+            title="Update Status" 
+            data-bs-toggle="dropdown">
+        <i class="fas fa-edit"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark">
+        <li><a class="dropdown-item" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'confirmed\')">Mark Confirmed</a></li>
+        <li><a class="dropdown-item" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'processing\')">Mark Processing</a></li>
 
-                            ' . $invoice_btn . '
+        ' . (empty($order['delivery_type']) && empty($order['awb_code']) ? '
+        <li><a class="dropdown-item text-info" href="#" onclick="openCourierModal(' . (int)$order['id'] . ')">Assign Courier (Shiprocket)</a></li>
+        <li><a class="dropdown-item text-warning" href="#" onclick="markLocalDelivery(' . (int)$order['id'] . ')">Mark as Local Delivery</a></li>
+        ' : '') . '
+
+        ' . ($order['delivery_type'] === 'local' ? '
+        <li><a class="dropdown-item" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'out_for_delivery\')">Mark Out for Delivery</a></li>
+        ' : '') . '
+
+        <li><a class="dropdown-item" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'delivered\')">Mark Delivered</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item text-danger" href="#" onclick="updateStatus(' . (int)$order['id'] . ', \'cancelled\')">Cancel Order</a></li>
+    </ul>
+</div>
+
+                           ' . $invoice_btn . '
+                            <a href="#" 
+                               class="action-btn text-danger" 
+                               title="Delete Order"
+                               onclick="deleteOrder(' . (int)$order['id'] . '); return false;">
+                                <i class="fas fa-trash"></i>
+                            </a>
                         </div>
                     </td>
                 </tr>
@@ -302,6 +317,25 @@ class Order extends CI_Controller
         }
 
         return $html;
+    }
+
+    public function mark_local_delivery($order_id)
+    {
+        $this->db->where('id', $order_id)->update('orders', [
+            'delivery_type' => 'local',
+            'status'        => 'confirmed',
+            'updated_at'    => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->db->insert('order_status_history', [
+            'order_id'   => $order_id,
+            'status'     => 'confirmed',
+            'remarks'    => 'Marked for local delivery (manual)',
+            'changed_by' => 'admin',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        echo json_encode(['status' => true]);
     }
 
     // Generate pagination HTML
@@ -459,6 +493,35 @@ class Order extends CI_Controller
         redirect('order/view/' . $order_id);
     }
 
+    public function delete_order($order_id)
+    {
+        $order = $this->db->get_where('orders', ['id' => $order_id])->row();
+
+        if (!$order) {
+            echo json_encode(['status' => false, 'message' => 'Order not found']);
+            return;
+        }
+
+        $this->db->trans_begin();
+
+        $this->db->where('order_id', $order_id)->delete('order_items');
+        $this->db->where('order_id', $order_id)->delete('order_status_history');
+        $this->db->where('id', $order_id)->delete('orders');
+
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            echo json_encode(['status' => false, 'message' => 'Failed to delete order']);
+            return;
+        }
+
+        $this->db->trans_commit();
+        echo json_encode([
+            'status'    => true,
+            'message'   => 'Order deleted successfully',
+            'csrf_hash' => $this->security->get_csrf_hash()
+        ]);
+    }
+
     public function assign_courier($order_id)
     {
         $courier_id = $this->input->post('courier_id');
@@ -583,7 +646,42 @@ class Order extends CI_Controller
 
         $this->load->view('shipping_label_view', $data);
     }
+    public function print_local_label($order_id)
+    {
+        $this->db->select('orders.*, 
+                  users.name as customer_name, 
+                  users.email as customer_email, 
+                  users.mobile as customer_phone,
+                  user_addresses.full_name,
+                  user_addresses.mobile as delivery_mobile,
+                  user_addresses.address_line1,
+                  user_addresses.address_line2,
+                  user_addresses.landmark,
+                  user_addresses.city,
+                  user_addresses.state,
+                  user_addresses.pincode,
+                  user_addresses.country');
+        $this->db->from('orders');
+        $this->db->join('users', 'users.id = orders.user_id', 'left');
+        $this->db->join('user_addresses', 'user_addresses.id = orders.address_id', 'left');
+        $this->db->where('orders.id', $order_id);
+        $order = $this->db->get()->row_array();
 
+        if (!$order) {
+            show_404();
+        }
+
+        $this->db->select('order_items.*, products.name as product_name');
+        $this->db->from('order_items');
+        $this->db->join('products', 'products.id = order_items.product_id', 'left');
+        $this->db->where('order_items.order_id', $order_id);
+        $order['items'] = $this->db->get()->result_array();
+
+        $data['order']      = $order;
+        $data['page_title'] = 'Shipping Label - ' . $order['order_number'];
+
+        $this->load->view('local_label_view', $data);
+    }
     public function download_invoice($order_id)
     {
         $order = $this->db->get_where('orders', ['id' => $order_id])->row();
@@ -606,18 +704,19 @@ class Order extends CI_Controller
     public function print_invoice($order_id)
     {
         $this->db->select('orders.*, 
-                      users.name as customer_name, 
-                      users.email as customer_email, 
-                      users.mobile as customer_phone,
-                      user_addresses.full_name,
-                      user_addresses.mobile as delivery_mobile,
-                      user_addresses.address_line1,
-                      user_addresses.address_line2,
-                      user_addresses.landmark,
-                      user_addresses.city,
-                      user_addresses.state,
-                      user_addresses.pincode,
-                      user_addresses.country');
+                  users.name as customer_name, 
+                  users.email as customer_email, 
+                  users.mobile as customer_phone,
+                  users.gst_number as customer_gst_number,
+                  user_addresses.full_name,
+                  user_addresses.mobile as delivery_mobile,
+                  user_addresses.address_line1,
+                  user_addresses.address_line2,
+                  user_addresses.landmark,
+                  user_addresses.city,
+                  user_addresses.state,
+                  user_addresses.pincode,
+                  user_addresses.country');
         $this->db->from('orders');
         $this->db->join('users', 'users.id = orders.user_id', 'left');
         $this->db->join('user_addresses', 'user_addresses.id = orders.address_id', 'left');

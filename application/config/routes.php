@@ -133,6 +133,7 @@ $route['order/view/(:num)']   = 'Order/view/$1';
 $route['orders/view/(:num)']  = 'Order/view/$1';
 $route['order/print_label/(:num)']   = 'Order/print_label/$1';
 $route['order/print_invoice/(:num)'] = 'Order/print_invoice/$1';
+$route['order/delete_order/(:num)']  = 'Order/delete_order/$1';
 
 /*
 |--------------------------------------------------------------------------
@@ -173,6 +174,7 @@ $route['api/verify_order_payment']           = 'api/verify_order_payment';
 $route['api/get_orders']                     = 'api/get_orders';
 $route['api/get_order_details/(:num)']       = 'api/get_order_details/$1';
 $route['api/cancel_order']                   = 'api/cancel_order';
+$route['api/delete_order']                   = 'api/delete_order';
 $route['api/check_delivery_charge']          = 'api/check_delivery_charge';
 $route['api/track_order']          = 'api/track_order';
 $route['live_status_webhook']          = 'api/shiprocket_webhook';

@@ -1029,7 +1029,7 @@ class Api extends CI_Controller
 
         $this->db
             ->select('p.id, p.name, p.price, p.mrp, p.image, p.stock, p.hsn_code, p.sku,
-              c.id AS category_id, c.name AS category_name')
+          c.id AS category_id, c.name AS category_name')
             ->from('products p')
             ->join('categories c', 'c.id = p.category_id', 'left')
             ->where('p.is_active', 1);
@@ -1041,6 +1041,7 @@ class Api extends CI_Controller
         if (!empty($search_keyword)) {
             $this->db->group_start()
                 ->like('p.name', $search_keyword)
+                ->or_like('p.sku', $search_keyword)
                 ->or_like('c.name', $search_keyword)
                 ->group_end();
         }
@@ -1254,7 +1255,7 @@ class Api extends CI_Controller
     {
         $rows = $this->db
             ->select('ci.id AS cart_id, ci.product_id, ci.quantity, ci.created_at, ci.updated_at,
-    p.name, p.price, p.mrp, p.image, p.stock, p.is_active, p.gst_percent,
+    p.name, p.price, p.mrp, p.image, p.stock, p.is_active, p.gst_percent,p.hsn_code,
     c.id AS category_id, c.name AS category_name')
             ->from('cart_items ci')
             ->join('products p', 'p.id = ci.product_id', 'left')
@@ -1295,6 +1296,7 @@ class Api extends CI_Controller
                 'category_id'    => (int) ($row->category_id ?? 0),
                 'category_name'  => $row->category_name ?? '',
                 'price'          => $price,
+                'hsn_code'       => $row->hsn_code ?? '',
                 'gst_percent' => $gst_percent,
                 'gst_amount'  => $gst_amount,
                 'mrp'            => $mrp,
@@ -1705,10 +1707,12 @@ class Api extends CI_Controller
                 'product_name'  => $item['name'],
                 'product_image' => $item['image'],
                 'price'         => $item['price'],
+                'hsn_code'         => $item['hsn_code'],
+
                 'gst_percent'   => $item['gst_percent'],
                 'gst_amount'    => $item['gst_amount'],
                 'quantity'      => $item['quantity'],
-                'subtotal'      => $item['line_total'], // Price × Qty (before GST)
+                'subtotal'      => $item['line_total'],
                 'created_at'    => date('Y-m-d H:i:s'),
             ]);
         }
@@ -1873,11 +1877,10 @@ subtotal
         $this->ensure_address_table();
         $this->ensure_orders_table();
 
-        $address_id     = (int) $this->input_value('address_id');
-        $payment_method = strtolower($this->input_value('payment_method', 'cod'));
-        $notes          = $this->input_value('notes');
-        $delivery_charge          = $this->input_value('delivery_charge');
-
+        $address_id      = (int) $this->input_value('address_id');
+        $payment_method  = strtolower($this->input_value('payment_method', 'cod'));
+        $notes           = $this->input_value('notes');
+        $delivery_charge = (float) $this->input_value('delivery_charge', 0);
 
         if ($address_id <= 0) {
             $this->send_response(false, 'Please select a delivery address.', null, 400);
@@ -1911,13 +1914,11 @@ subtotal
             }
         }
 
-        $subtotal        = $cart_summary['subtotal'];
-        $total_gst = $cart_summary['total_gst'];
-        // $delivery_charge = 0.00;
-        $discount        = 0.00;
+        $subtotal     = $cart_summary['subtotal'];
+        $total_gst    = $cart_summary['total_gst'];
+        $discount     = 0.00;
         $total_amount = $subtotal + $total_gst + $delivery_charge - $discount;
-        // $total_amount = 1.00;
-        $order_number    = 'GMB' . date('Ymd') . strtoupper(substr(uniqid(), -6));
+        $order_number = 'GMB' . date('Ymd') . strtoupper(substr(uniqid(), -6));
 
         /* ---------------- ONLINE PAYMENT ---------------- */
         if ($payment_method === 'online') {
@@ -1946,8 +1947,8 @@ subtotal
                 'user_id'           => $user_id,
                 'address_id'        => $address_id,
                 'order_number'      => $order_number,
-                'subtotal'    => $subtotal,
-                'gst_amount'  => $total_gst,
+                'subtotal'          => $subtotal,
+                'gst_amount'        => $total_gst,
                 'delivery_charge'   => $delivery_charge,
                 'discount'          => $discount,
                 'total_amount'      => $total_amount,
@@ -1976,63 +1977,65 @@ subtotal
                 'amount'            => $total_amount,
                 'currency'          => $currency,
                 'key_id'            => $key_id,
-                'gst_amount'  => $total_gst,
-
-                'delivery_charge' => $delivery_charge,
-
-
-                // Actual Razorpay Order ID
+                'gst_amount'        => $total_gst,
+                'delivery_charge'   => $delivery_charge,
                 'razorpay_order_id' => $gateway['data']['id'],
-
-                // Dummy values for Postman testing
-                // 'test_verify_payload' => [
-                //     'razorpay_order_id'   => $gateway['data']['id'],
-                //     'razorpay_payment_id' => 'pay_T9N71ItLv8bR0s',
-                //     'razorpay_signature'  => hash_hmac(
-                //         'sha256',
-                //         $gateway['data']['id'] . '|pay_T9N71ItLv8bR0s',
-                //         $key_secret
-                //     ),
-                // ],
             ]);
-
-            /* ---------------- COD ---------------- */
-            $this->db->trans_begin();
-
-            $this->db->insert('orders', [
-                'user_id'         => $user_id,
-                'address_id'      => $address_id,
-                'order_number'    => $order_number,
-                'subtotal'    => $subtotal,
-                'gst_amount'  => $total_gst,
-                'delivery_charge' => $delivery_charge,
-                'discount'        => $discount,
-                'total_amount'    => $total_amount,
-                'total_items'     => $cart_summary['total_quantity'],
-                'payment_method'  => 'cod',
-                'payment_status'  => 'pending',
-                'status'          => 'pending',
-                'notes'           => $notes,
-                'created_at'      => date('Y-m-d H:i:s'),
-            ]);
-
-            $order_id = $this->db->insert_id();
-            $this->insert_order_items($order_id, $cart_summary['items']);
-            $this->reduce_stock($cart_summary['items']);
-            $this->insert_status_history($order_id, 'pending', 'Order placed successfully', 'system');
-            $this->db->where('user_id', $user_id)->delete('cart_items');
-
-            if ($this->db->trans_status() === false) {
-                $this->db->trans_rollback();
-                $this->send_response(false, 'Failed to place order. Please try again.', null, 500);
-            }
-
-            $this->db->trans_commit();
-
-            $this->send_response(true, 'Order placed successfully.', $this->format_order_full($order_id, $user_id), 201);
+            return;   // <-- CRITICAL: stops execution here for online orders
         }
-    }
 
+        /* ---------------- COD ---------------- */
+        // This block now runs independently when payment_method === 'cod'
+        $this->db->trans_begin();
+
+        $this->db->insert('orders', [
+            'user_id'         => $user_id,
+            'address_id'      => $address_id,
+            'order_number'    => $order_number,
+            'subtotal'        => $subtotal,
+            'gst_amount'      => $total_gst,
+            'delivery_charge' => $delivery_charge,
+            'discount'        => $discount,
+            'total_amount'    => $total_amount,
+            'total_items'     => $cart_summary['total_quantity'],
+            'payment_method'  => 'cod',
+            'payment_status'  => 'pending',
+            'status'          => 'pending',
+            'notes'           => $notes,
+            'created_at'      => date('Y-m-d H:i:s'),
+        ]);
+
+        $order_id = $this->db->insert_id();
+        $this->insert_order_items($order_id, $cart_summary['items']);
+        $this->reduce_stock($cart_summary['items']);
+        $this->insert_status_history($order_id, 'pending', 'Order placed successfully', 'system');
+        $this->db->where('user_id', $user_id)->delete('cart_items');
+
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            $this->send_response(false, 'Failed to place order. Please try again.', null, 500);
+        }
+
+        $this->db->trans_commit();
+
+        // Push COD order to Shiprocket too (COD orders are confirmed immediately, no payment gateway step)
+        $this->load->library('shiprocket');
+        $this->shiprocket->create_order($order_id);
+
+        $this->send_response(true, 'Order placed successfully.', $this->format_order_full($order_id, $user_id), 201);
+    }
+    public function check_delivery_charge()
+    {
+        $this->require_method('POST');
+        $pincode = $this->input_value('pincode');
+
+        $this->load->library('shiprocket');
+        $token = $this->shiprocket->get_token();
+        $result = $this->shiprocket->check_serviceability('360001', $pincode);
+
+        // TEMP DEBUG - remove after fixing
+        $this->send_response(true, 'debug', ['token_ok' => !empty($token), 'raw' => $result]);
+    }
     public function verify_order_payment(): void
     {
         $this->require_method('POST');
@@ -2220,10 +2223,7 @@ subtotal
         ]);
     }
 
-    /*-----------------------------------------------------------------------
-    | GET ORDER DETAILS
-    | GET /api/get_order_details/{order_id}  [Auth required]
-    |-----------------------------------------------------------------------*/
+
     public function get_order_details(int $order_id = 0): void
     {
         $user_id = $this->require_token_user_id();
@@ -2304,6 +2304,54 @@ subtotal
             'order_number' => $order->order_number,
             'status'       => 'cancelled',
         ]);
+    }
+
+    /*-----------------------------------------------------------------------
+    | DELETE ORDER
+    | POST /api/delete_order  [Auth required]
+    | Body: { "order_id" }
+    | Only allows deleting orders that are already cancelled.
+    |-----------------------------------------------------------------------*/
+    public function delete_order(): void
+    {
+        $this->require_method('POST');
+
+        $user_id = $this->require_token_user_id();
+        $this->ensure_orders_table();
+
+        $order_id = (int) $this->input_value('order_id');
+
+        if ($order_id <= 0) {
+            $this->send_response(false, 'A valid order ID is required.', null, 400);
+        }
+
+        $order = $this->db->get_where('orders', [
+            'id'      => $order_id,
+            'user_id' => $user_id,
+        ])->row();
+
+        if (!$order) {
+            $this->send_response(false, 'Order not found.', null, 404);
+        }
+
+        if ($order->status !== 'cancelled') {
+            $this->send_response(false, 'Only cancelled orders can be deleted.', null, 400);
+        }
+
+        $this->db->trans_begin();
+
+        $this->db->where('order_id', $order_id)->delete('order_items');
+        $this->db->where('order_id', $order_id)->delete('order_status_history');
+        $this->db->where('id', $order_id)->delete('orders');
+
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            $this->send_response(false, 'Failed to delete order. Please try again.', null, 500);
+        }
+
+        $this->db->trans_commit();
+
+        $this->send_response(true, 'Order deleted successfully.');
     }
 
     /*=======================================================================

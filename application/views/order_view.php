@@ -321,13 +321,19 @@
 </style>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
+    var csrfToken = '<?= $this->security->get_csrf_hash(); ?>';
+
+    function getCsrfToken() {
+        const match = document.cookie.match(/(?:^|;\s*)csrf_cookie_name=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : csrfToken;
+    }
+
     $(document).ready(function() {
         let currentPage = 1;
         let searchQuery = '';
         let statusFilter = '';
         let paymentFilter = '';
         let searchTimeout = null;
-        let csrfToken = '<?= $this->security->get_csrf_hash(); ?>';
 
         // Initial load
         loadOrders();
@@ -553,5 +559,40 @@
                 if (res.status) window.open(res.url, '_blank');
                 else alert('Failed: ' + res.message);
             });
+    }
+
+    function markLocalDelivery(orderId) {
+        if (!confirm('Mark this order for local delivery? It will NOT be sent to Shiprocket.')) return;
+
+        fetch('<?= site_url("order/mark_local_delivery/") ?>' + orderId)
+            .then(res => res.json())
+            .then(res => {
+                if (res.status) location.reload();
+            });
+    }
+
+    function deleteOrder(orderId) {
+        if (!confirm('Are you sure you want to permanently delete this order? This cannot be undone.')) return;
+
+        fetch('<?= site_url("order/delete_order/") ?>' + orderId, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'csrf_test_name=' + encodeURIComponent(getCsrfToken())
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.csrf_hash) {
+                    csrfToken = res.csrf_hash;
+                }
+                if (res.status) {
+                    location.reload();
+                } else {
+                    alert('Failed: ' + res.message);
+                }
+            })
+            .catch(() => alert('Something went wrong while deleting the order.'));
     }
 </script>

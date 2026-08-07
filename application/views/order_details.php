@@ -278,60 +278,80 @@
         </div>
 
         <!-- Shipping / Shiprocket Card -->
-        <div class="card-dark mb-4">
-            <div class="card-header-dark">
-                <h6><i class="fas fa-truck"></i> Shipping Details</h6>
+      <div class="card-dark mb-4">
+    <div class="card-header-dark">
+        <h6><i class="fas fa-truck"></i> Shipping Details</h6>
+    </div>
+    <div class="card-body-dark">
+
+        <?php if (!empty($order['awb_code'])): ?>
+            <div class="info-group">
+                <div class="info-label">AWB Number</div>
+                <div class="info-value"><?= htmlspecialchars($order['awb_code']) ?></div>
             </div>
-            <div class="card-body-dark">
+            <div class="info-group">
+                <div class="info-label">Courier Partner</div>
+                <div class="info-value"><?= htmlspecialchars($order['courier_name']) ?></div>
+            </div>
+            <div class="info-group">
+                <div class="info-label">Tracking Status</div>
+                <div class="info-value" id="trackingStatusText">
+                    <?= htmlspecialchars($order['tracking_status'] ?? 'Not updated yet') ?>
+                </div>
+            </div>
 
-                <?php if (!empty($order['awb_code'])): ?>
-                    <div class="info-group">
-                        <div class="info-label">AWB Number</div>
-                        <div class="info-value"><?= htmlspecialchars($order['awb_code']) ?></div>
-                    </div>
-                    <div class="info-group">
-                        <div class="info-label">Courier Partner</div>
-                        <div class="info-value"><?= htmlspecialchars($order['courier_name']) ?></div>
-                    </div>
-                    <div class="info-group">
-                        <div class="info-label">Tracking Status</div>
-                        <div class="info-value" id="trackingStatusText">
-                            <?= htmlspecialchars($order['tracking_status'] ?? 'Not updated yet') ?>
-                        </div>
-                    </div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:15px;">
+                <button class="btn-outline-light-custom" onclick="refreshTracking(<?= $order['id'] ?>)">
+                    <i class="fas fa-sync"></i> Refresh Tracking
+                </button>
 
-                    <div style="display:flex; flex-direction:column; gap:8px; margin-top:15px;">
-                        <button class="btn-outline-light-custom" onclick="refreshTracking(<?= $order['id'] ?>)">
-                            <i class="fas fa-sync"></i> Refresh Tracking
-                        </button>
-
-                        <?php if (empty($order['pickup_scheduled'])): ?>
-                            <button class="btn-red" onclick="schedulePickup(<?= $order['id'] ?>)">
-                                <i class="fas fa-calendar-check"></i> Schedule Pickup
-                            </button>
-                        <?php else: ?>
-                            <span class="badge-active" style="padding:8px; text-align:center;">Pickup Scheduled</span>
-                        <?php endif; ?>
-
-                        <button class="btn-outline-light-custom" onclick="downloadLabel(<?= $order['id'] ?>)">
-                            <i class="fas fa-tag"></i> Download Label
-                        </button>
-
-                        <button class="btn-outline-light-custom" onclick="downloadInvoice(<?= $order['id'] ?>)">
-                            <i class="fas fa-file-invoice"></i> Download Shiprocket Invoice
-                        </button>
-                    </div>
-
-                <?php elseif (!empty($order['shiprocket_shipment_id'])): ?>
-                    <p style="color:#999; font-size:13px;">Courier not assigned yet.</p>
-                    <button class="btn-red" onclick="openCourierModal(<?= $order['id'] ?>)">Assign Courier</button>
+                <?php if (empty($order['pickup_scheduled'])): ?>
+                    <button class="btn-red" onclick="schedulePickup(<?= $order['id'] ?>)">
+                        <i class="fas fa-calendar-check"></i> Schedule Pickup
+                    </button>
                 <?php else: ?>
-                    <p style="color:#999; font-size:13px;">Not yet synced with Shiprocket.</p>
+                    <span class="badge-active" style="padding:8px; text-align:center;">Pickup Scheduled</span>
                 <?php endif; ?>
 
-            </div>
-        </div>
+                <button class="btn-outline-light-custom" onclick="downloadLabel(<?= $order['id'] ?>)">
+                    <i class="fas fa-tag"></i> Download Label
+                </button>
 
+                <button class="btn-outline-light-custom" onclick="downloadInvoice(<?= $order['id'] ?>)">
+                    <i class="fas fa-file-invoice"></i> Download Shiprocket Invoice
+                </button>
+            </div>
+
+        <?php elseif ($order['delivery_type'] === 'local'): ?>
+
+            <div class="info-group">
+                <div class="info-label">Delivery Type</div>
+                <div class="info-value">🚴 Local Delivery (Manual)</div>
+            </div>
+            <div class="info-group">
+                <div class="info-label">Order Status</div>
+                <div class="info-value"><?= ucfirst($order['status']) ?></div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:15px;">
+                <button class="btn-outline-light-custom" onclick="window.open('<?= site_url('order/print_local_label/' . $order['id']) ?>', '_blank')">
+                    <i class="fas fa-tag"></i> Print Packing Slip
+                </button>
+
+                <button class="btn-outline-light-custom" onclick="window.open('<?= site_url('order/print_invoice/' . $order['id']) ?>', '_blank')">
+                    <i class="fas fa-file-invoice"></i> Print Invoice
+                </button>
+            </div>
+
+        <?php elseif (!empty($order['shiprocket_shipment_id'])): ?>
+            <p style="color:#999; font-size:13px;">Courier not assigned yet.</p>
+            <button class="btn-red" onclick="openCourierModal(<?= $order['id'] ?>)">Assign Courier</button>
+        <?php else: ?>
+            <p style="color:#999; font-size:13px;">Not yet synced with Shiprocket.</p>
+        <?php endif; ?>
+
+    </div>
+</div>
         <!-- Notes Card -->
         <?php if (!empty($order['notes'])): ?>
             <div class="card-dark">

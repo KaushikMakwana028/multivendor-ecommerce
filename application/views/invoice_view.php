@@ -306,19 +306,31 @@
         <div class="address-grid">
             
             <!-- Sold By (Seller) -->
-            <div class="address-box">
-                <div class="box-title">Sold By (Seller):</div>
-                <div class="party-name">Ghanshyam Murti Bhandar</div>
-                <div style="font-size: 11px; color: #333; margin-top: 3px; line-height: 1.3;">
-                    Pujara Plot Main Rd, near chirag medical Lakshmi wadi, Bhakti Nagar, Rajkot, Gujarat 360002, India
-                </div>
-                <div style="font-size: 11px; color: #333; margin-top: 4px;">
-                    <strong>State Code:</strong> 24 (Gujarat)
-                </div>
-                <div style="font-size: 11px; color: #333; margin-top: 2px;">
-                    <strong>Ph:</strong> +91 9909289536
-                </div>
-            </div>
+          <div class="address-box">
+    <div class="box-title">Delivered To (Customer):</div>
+    <div class="party-name">
+        <?= htmlspecialchars(($order['full_name'] ?? '') ?: (($order['customer_name'] ?? '') ?: 'Valued Customer')) ?>
+    </div>
+    <div style="font-size: 11px; color: #333; margin-top: 3px; line-height: 1.3;">
+        <?= htmlspecialchars($order['address_line1'] ?? '') ?>
+        <?php if (!empty($order['address_line2'])): ?>
+            , <?= htmlspecialchars($order['address_line2']) ?>
+        <?php endif; ?>
+    </div>
+    <div style="font-size: 11px; color: #333; margin-top: 2px;">
+        <?= htmlspecialchars($order['city'] ?? '') ?><?= !empty($order['state']) ? ', ' . htmlspecialchars($order['state']) : '' ?> - <strong><?= htmlspecialchars($order['pincode'] ?? '') ?></strong>
+    </div>
+    <?php if (!empty($order['delivery_mobile']) || !empty($order['customer_phone'])): ?>
+        <div style="font-size: 11px; color: #333; margin-top: 3px;">
+            <strong>Ph:</strong> <?= htmlspecialchars(($order['delivery_mobile'] ?? '') ?: ($order['customer_phone'] ?? '')) ?>
+        </div>
+    <?php endif; ?>
+    <?php if (!empty($order['customer_gst_number'])): ?>
+        <div style="font-size: 11px; color: #333; margin-top: 3px;">
+            <strong>GSTIN:</strong> <?= htmlspecialchars($order['customer_gst_number']) ?>
+        </div>
+    <?php endif; ?>
+</div>
 
             <!-- Delivered To (Customer) -->
             <div class="address-box">
@@ -382,46 +394,61 @@
         </div>
 
         <!-- Items Table -->
-        <table class="items-table">
-            <thead>
-                <tr>
-                    <th style="width: 40px;" class="text-center">#</th>
-                    <th>Description</th>
-                    <th style="width: 60px;" class="text-center">Qty</th>
-                    <th style="width: 100px;" class="text-right">Unit Price</th>
-                    <th style="width: 110px;" class="text-right">Total (₹)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php 
-                $calc_subtotal = 0;
-                if (!empty($order['items'])): 
-                    foreach ($order['items'] as $i => $item): 
-                        $item_price = floatval($item['price'] ?? 0);
-                        $item_qty   = intval($item['quantity'] ?? 1);
-                        $item_total = $item_price * $item_qty;
-                        $calc_subtotal += $item_total;
-                ?>
-                    <tr>
-                        <td class="text-center" style="color:#666;"><?= $i + 1 ?></td>
-                        <td>
-                            <div style="font-weight: 700; color: #000;"><?= htmlspecialchars($item['product_name'] ?? 'Product') ?></div>
-                        </td>
-                        <td class="text-center" style="font-weight: 700;"><?= $item_qty ?></td>
-                        <td class="text-right">₹<?= number_format($item_price, 2) ?></td>
-                        <td class="text-right" style="font-weight: 700;">₹<?= number_format($item_total, 2) ?></td>
-                    </tr>
-                <?php 
-                    endforeach; 
-                else: 
-                ?>
-                    <tr>
-                        <td colspan="5" class="text-center" style="padding: 20px; color: #999;">No items found</td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+     <table class="items-table">
+    <thead>
+        <tr>
+            <th style="width: 30px;" class="text-center">#</th>
+            <th>Description</th>
+            <th style="width: 70px;" class="text-center">HSN</th>
+            <th style="width: 50px;" class="text-center">Qty</th>
+            <th style="width: 90px;" class="text-right">Unit Price</th>
+            <th style="width: 90px;" class="text-right">Taxable Value</th>
+            <th style="width: 80px;" class="text-right">CGST</th>
+            <th style="width: 80px;" class="text-right">SGST</th>
+            <th style="width: 100px;" class="text-right">Total (₹)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php 
+        $calc_subtotal = 0;
+        $total_cgst = 0;
+        $total_sgst = 0;
+        if (!empty($order['items'])): 
+            foreach ($order['items'] as $i => $item): 
+                $item_price   = floatval($item['price'] ?? 0);
+                $item_qty     = intval($item['quantity'] ?? 1);
+                $taxable      = floatval($item['subtotal'] ?? ($item_price * $item_qty));
+                $gst_amount   = floatval($item['gst_amount'] ?? 0);
+                $half_gst     = $gst_amount / 2;
+                $item_total   = $taxable + $gst_amount;
 
+                $calc_subtotal += $taxable;
+                $total_cgst    += $half_gst;
+                $total_sgst    += $half_gst;
+        ?>
+            <tr>
+                <td class="text-center" style="color:#666;"><?= $i + 1 ?></td>
+                <td>
+                    <div style="font-weight: 700; color: #000;"><?= htmlspecialchars($item['product_name'] ?? 'Product') ?></div>
+                </td>
+                <td class="text-center"><?= htmlspecialchars($item['hsn_code'] ?? '-') ?></td>
+                <td class="text-center" style="font-weight: 700;"><?= $item_qty ?></td>
+                <td class="text-right">₹<?= number_format($item_price, 2) ?></td>
+                <td class="text-right">₹<?= number_format($taxable, 2) ?></td>
+                <td class="text-right">₹<?= number_format($half_gst, 2) ?><br><small>(<?= number_format(($item['gst_percent'] ?? 0) / 2, 1) ?>%)</small></td>
+                <td class="text-right">₹<?= number_format($half_gst, 2) ?><br><small>(<?= number_format(($item['gst_percent'] ?? 0) / 2, 1) ?>%)</small></td>
+                <td class="text-right" style="font-weight: 700;">₹<?= number_format($item_total, 2) ?></td>
+            </tr>
+        <?php 
+            endforeach; 
+        else: 
+        ?>
+            <tr>
+                <td colspan="9" class="text-center" style="padding: 20px; color: #999;">No items found</td>
+            </tr>
+        <?php endif; ?>
+    </tbody>
+</table>
         <!-- Totals & Amount in Words Section -->
         <div class="totals-section">
             
@@ -464,29 +491,36 @@
                     ?>
                 </div>
             </div>
-
-            <table class="totals-table">
-                <tr>
-                    <td style="color:#555; font-weight:600;">Subtotal:</td>
-                    <td class="text-right" style="font-weight:700;">₹<?= number_format(floatval($order['subtotal'] ?? $calc_subtotal), 2) ?></td>
-                </tr>
-                <?php if (!empty($order['delivery_charge']) && floatval($order['delivery_charge']) > 0): ?>
-                    <tr>
-                        <td style="color:#555; font-weight:600;">Delivery Charges:</td>
-                        <td class="text-right" style="font-weight:700;">₹<?= number_format(floatval($order['delivery_charge']), 2) ?></td>
-                    </tr>
-                <?php endif; ?>
-                <?php if (!empty($order['discount']) && floatval($order['discount']) > 0): ?>
-                    <tr>
-                        <td style="color:#555; font-weight:600;">Discount:</td>
-                        <td class="text-right" style="color:#e01020; font-weight:700;">-₹<?= number_format(floatval($order['discount']), 2) ?></td>
-                    </tr>
-                <?php endif; ?>
-                <tr class="grand-total">
-                    <td>Grand Total:</td>
-                    <td class="text-right">₹<?= number_format($grand_total, 2) ?></td>
-                </tr>
-            </table>
+<table class="totals-table">
+    <tr>
+        <td style="color:#555; font-weight:600;">Taxable Amount:</td>
+        <td class="text-right" style="font-weight:700;">₹<?= number_format($calc_subtotal, 2) ?></td>
+    </tr>
+    <tr>
+        <td style="color:#555; font-weight:600;">CGST:</td>
+        <td class="text-right" style="font-weight:700;">₹<?= number_format($total_cgst, 2) ?></td>
+    </tr>
+    <tr>
+        <td style="color:#555; font-weight:600;">SGST:</td>
+        <td class="text-right" style="font-weight:700;">₹<?= number_format($total_sgst, 2) ?></td>
+    </tr>
+    <?php if (!empty($order['delivery_charge']) && floatval($order['delivery_charge']) > 0): ?>
+        <tr>
+            <td style="color:#555; font-weight:600;">Delivery Charges:</td>
+            <td class="text-right" style="font-weight:700;">₹<?= number_format(floatval($order['delivery_charge']), 2) ?></td>
+        </tr>
+    <?php endif; ?>
+    <?php if (!empty($order['discount']) && floatval($order['discount']) > 0): ?>
+        <tr>
+            <td style="color:#555; font-weight:600;">Discount:</td>
+            <td class="text-right" style="color:#e01020; font-weight:700;">-₹<?= number_format(floatval($order['discount']), 2) ?></td>
+        </tr>
+    <?php endif; ?>
+    <tr class="grand-total">
+        <td>Grand Total:</td>
+        <td class="text-right">₹<?= number_format(floatval($order['total_amount'] ?? $calc_subtotal), 2) ?></td>
+    </tr>
+</table>
 
         </div>
 
